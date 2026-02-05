@@ -619,7 +619,7 @@ def apply_temp_updates():
                 for file in files:
                     src = os.path.join(root, file)
                     dst = os.path.join(dest_root, file)
-                    shutil.copy2(src, dst)
+                    shutil.copy(src, dst)
 
             # xoá temp sau khi copy xong
             shutil.rmtree(temp_dir)
