@@ -52,6 +52,8 @@ from kivymd.uix.textfield import MDTextField
 from kivymd.uix.label import MDLabel
 from kivymd.uix.button import MDIconButton, MDFillRoundFlatButton
 from kivymd.uix.dialog import MDDialog
+from kivymd.uix.menu import MDDropdownMenu
+from kivymd.uix.pickers import MDDatePicker
 from kivymd.uix.scrollview import ScrollView
 from kivymd.uix.card import MDCard
 from kivy.animation import Animation
@@ -214,9 +216,10 @@ class ChatApp(MDApp):
         self.icon="resources/img/Icon.png"
         self.title="luv"
 
-        self.uid_button=MDFillRoundFlatButton(text="Đặt UID", on_release=self.show_uid_dialog, md_bg_color=btn, text_color='white', pos_hint={"center_y": 0.5})
+        self.uid_button=MDFillRoundFlatButton(text="Menu", on_release=self.menu_open, md_bg_color=btn, text_color='white', pos_hint={"center_y": 0.5})
         self.last_date = None
-        self.last_count = 0
+        self.lookup = False
+        self.lookup_date = datetime.strftime(datetime.now(), "%d/%m/%Y")
         if os.path.exists("uid.txt"):
             with open("uid.txt", "r") as f:
                 self.user_id = f.read().strip()
@@ -317,8 +320,46 @@ class ChatApp(MDApp):
         self.listen_realtime()
 
         return layout
+    
+    def date_picker_open(self):
+        self.menu.dismiss()
+        date_dialog = MDDatePicker(title_input="Nhập ngày check", title="Chọn ngày check", primary_color=menubg, accent_color=bg, selector_color=btn, text_button_color="black", input_field_background_color_focus=boxbg, input_field_background_color_normal=boxbg[:-1]+(0.25,), input_field_text_color_focus="black", text_weekday_color=btn, helper_text="")
+        date_dialog.bind(on_save=self.load_messages)
+        date_dialog.open()
+    
+    def menu_open(self, instance):
+        menu_items = [
+            {
+                "text": "Check tin nhắn cũ",
+                "text_color": primarycolor,
+                "trailing_icon": "history",
+                "theme_trailing_icon_color": "Custom",
+                "trailing_icon_color": primarycolor,
+                "on_release": self.date_picker_open
+            },
+            {
+                "text": "Đổi UID",
+                "text_color": primarycolor,
+                "trailing_icon": "content-copy",
+                "theme_trailing_icon_color": "Custom",
+                "trailing_icon_color": primarycolor,
+                "on_release": self.show_uid_dialog
+            }
+        ]
+        
+        self.menu=MDDropdownMenu(
+            caller=self.uid_button,
+            items=menu_items,               
+            ver_growth="down",
+            hor_growth="left",
+            md_bg_color=menubg,
+            position="bottom"
+        )
+        self.menu.open()
 
     def show_uid_dialog(self, *args):
+        try: self.menu.dismiss()
+        except: pass
         self.uid_input = MDTextField(hint_text="Đặt UID nề bbi <3",
                                     font_name="resources/fonts/segoeui.ttf",
                                     line_color_normal=boxbg,
@@ -362,6 +403,12 @@ class ChatApp(MDApp):
         if not self.user_id:
             self.show_uid_dialog()
             return
+        
+        if self.lookup and datetime.strptime(self.lookup_date, "%d/%m/%Y") < datetime.now():
+            self.lookup=False
+            self.msg_list.clear_widgets()
+            self.load_messages()
+
         msg = self.text_input.input.text
         if msg:
             url = f"{SUPABASE_URL}/rest/v1/messages"
@@ -372,18 +419,25 @@ class ChatApp(MDApp):
             else:
                 print("Error:", res.text)
 
-    def load_messages(self):
-        url = f"{SUPABASE_URL}/rest/v1/messages?select=*&order=date.asc,created_at.asc"
+    def load_messages(self, instance=None, date_str=datetime.strftime(datetime.now(), '%d/%m/%Y'), data_range=None):
+        if instance:
+            date_str=datetime.strptime(str(date_str), "%Y-%m-%d").strftime("%d/%m/%Y")
+            self.lookup=True
+            self.lookup_date=date_str
+            if date_str==datetime.strftime(datetime.now(), '%d/%m/%Y'): return
+            self.msg_list.clear_widgets()
+        url = f"{SUPABASE_URL}/rest/v1/messages?select=*&date=eq.{date_str}&order=created_at.asc"
         res = requests.get(url, headers=headers)
         if res.status_code == 200:
             rows = res.json()
-            for row in rows:
-                self.display_message(row['sender'], row['content'], row['created_at'], row['date'])
-            self.last_count = len(rows)
+            if rows:
+                for row in rows:
+                    self.display_message(row['sender'], row['content'], row['created_at'], row['date'])
+            elif datetime.strptime(date_str, "%d/%m/%Y") < datetime.now(): self.display_message('ngha' if self.user_id=='hmn' else 'hmn', 'Không có tin nhắn nào cho ngày này hết ;-;', '00:00', date_str)
             if self.msg_list.height > self.msg_scroll.height and self.msg_scroll.height != 0:
                 Animation(scroll_y=0, transition="out_quad").start(self.msg_scroll)
 
-    def display_message(self, sender, content, timestamp, date):
+    def display_message(self, sender, content, timestamp, date):            
         if self.last_date==None or self.last_date != date:
             date_label = MDLabel(
                 text=f"[size={int(dp(12))}]{format_text_with_fonts(date)}[/size]",
@@ -626,4 +680,3 @@ def apply_temp_updates():
 
 apply_temp_updates()
 ChatApp().run()
-
