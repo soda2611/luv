@@ -488,7 +488,7 @@ class ChatApp(MDApp):
                     self.display_message(row['sender'], row['content'], row['created_at'], row['date'])
             elif datetime.strptime(date_str, "%d/%m/%Y") < datetime.now(): self.display_message('ngha' if self.user_id=='hmn' else 'hmn', 'Không có tin nhắn nào cho ngày này hết ;-;', '00:00', date_str)
             elif datetime.strptime(date_str, "%d/%m/%Y") > datetime.now(): self.display_message('ngha' if self.user_id=='hmn' else 'hmn', 'Mong chờ những lời iu thương của {} qaaa :3'.format('hmn' if self.user_id=='hmn' else 'ngha'), '00:00', date_str)
-            Animation(scroll_y=1, transition="out_quad").start(self.msg_scroll)
+            Animation(scroll_y=0, transition="out_quad").start(self.msg_scroll)
 
     def display_message(self, sender, content, timestamp, date):            
         if self.last_date==None or self.last_date != date:
