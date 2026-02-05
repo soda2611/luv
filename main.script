@@ -99,13 +99,38 @@ def is_emoji(char):
     )
 
 def format_text_with_fonts(text, bold=False):
+    if not text:
+        return ""
+
+    normal_font = "resources/fonts/segoeuib.ttf" if bold else "resources/fonts/segoeui.ttf"
+    emoji_font = "resources/fonts/seguiemj.ttf"
+
     parts = []
-    for char in text:
-        if is_emoji(char):
-            parts.append(f"[font=resources/fonts/seguiemj.ttf]{char}[/font]")
+    buffer = []
+    buffer_is_emoji = None
+
+    for ch in text:
+        ch_is_emoji = is_emoji(ch)
+
+        # lần đầu
+        if buffer_is_emoji is None:
+            buffer.append(ch)
+            buffer_is_emoji = ch_is_emoji
+            continue
+
+        # cùng loại → gom
+        if ch_is_emoji == buffer_is_emoji:
+            buffer.append(ch)
         else:
-            if not bold: parts.append(f"[font=resources/fonts/segoeui.ttf]{char}[/font]")
-            else: parts.append(f"[font=resources/fonts/segoeuib.ttf]{char}[/font]")
+            # khác loại → flush buffer
+            font = emoji_font if buffer_is_emoji else normal_font
+            parts.append(f"[font={font}]{''.join(buffer)}[/font]")
+            buffer = [ch]
+            buffer_is_emoji = ch_is_emoji
+
+    # flush phần còn lại
+    font = emoji_font if buffer_is_emoji else normal_font
+    parts.append(f"[font={font}]{''.join(buffer)}[/font]")
 
     return "".join(parts)
 
