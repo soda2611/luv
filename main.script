@@ -272,7 +272,7 @@ class ChatApp(MDApp):
         # Text input layout
         self.text_input = MDBoxLayout(size_hint=(1, None), height=dp(50), spacing=dp(5))
         self.text_input.input = LimitedTextField(
-            hint_text="Nhập tin nhắn...",
+            hint_text="Viết lời iu thương vào đây nề <3",
             line_color_normal=boxbg,
             line_color_focus=boxbg,
             hint_text_color=[0.75 - i for i in primarycolor],
