@@ -1,0 +1,602 @@
+import requests, base64, os
+
+token = "g%h%p%_%l%6%b%z%c%z%t%j%6%Q%R%0%q%e%i%W%k%S%l%h%W%U%8%U%4%H%s%6%r%K%0%n%I%K%U%9".replace("%", "")
+user_url = "https://api.github.com/repos/soda2611/"
+
+def download_file(repo, file_path, name):
+    url = f"{user_url}{repo}/contents/{file_path}"
+    headers = {"Authorization": f"token {token}"}
+    response = requests.get(url, headers=headers)
+    if response.status_code == 200:
+        contents = response.json()
+        if not isinstance(contents, list):
+            download_url = contents["download_url"]
+            response = requests.get(download_url)
+            with open(name, 'wb') as f:
+                f.write(response.content)
+        else:
+            for content in contents:
+                if not os.path.exists(name):
+                    os.makedirs(name)
+                download_url = content["download_url"]
+                response = requests.get(download_url)
+                with open(f'{name}/{content["name"]}', 'wb') as f:
+                    f.write(response.content)
+    else:
+        print(f"Error downloading file: {response.text}")
+
+SUPABASE_URL = "https://fjhakjrxbdiowjkppgzy.supabase.co"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZqaGFranJ4YmRpb3dqa3BwZ3p5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAwMDM3MDQsImV4cCI6MjA4NTU3OTcwNH0.4m-t-4jzXj1yVEajD1Gwukf5GxchdaLMl-0PaJr5BR0"
+EMOJI_LIKE = [
+    0xFE0F, 0x00A9, 0x00AE, 0x203C, 0x2049, 0x2122, 0x00A9, 0x00AE,
+    0x203C, 0x2049, 0x2122, 0x2139, 0x2328, 0x23CF, 0x24C2, 0x25B6,
+    0x25C0, 0x260E, 0x2611, 0x2618, 0x261D, 0x2620, 0x2626, 0x262A,
+    0x2640, 0x2642, 0x265F, 0x2660, 0x2663, 0x2668, 0x267B, 0x2699,
+    0x26A7, 0x25C8, 0x26FD, 0x2702, 0x2705, 0x270F, 0x2712, 0x2714,
+    0x2716, 0x271D, 0x2721, 0x2728, 0x2744, 0x2747, 0x274C, 0x274E,
+    0x2757, 0x27A1, 0x27B0, 0x27BF, 0x2B50, 0x2B55, 0x3030, 0x303D,
+    0x3297, 0x3299, 0x1F004, 0x1F18E, 0x1F21A, 0x1F22F, 0x26D1, 0x1F4FF,
+    0x1F587, 0x1F587, 0x1F587, 0x1F587, 0x1F587, 0x1F587, 0x1F587, 0x1F587,
+    0x1F587, 0x1F587, 0x1F587, 0x1F587, 0x1F587, 
+]
+  
+import asyncio
+import os
+import requests
+import threading
+import time
+from datetime import datetime
+from kivymd.app import MDApp
+from kivymd.uix.boxlayout import MDBoxLayout
+from kivymd.uix.textfield import MDTextField
+from kivymd.uix.label import MDLabel
+from kivymd.uix.button import MDIconButton, MDFillRoundFlatButton
+from kivymd.uix.dialog import MDDialog
+from kivymd.uix.scrollview import ScrollView
+from kivymd.uix.card import MDCard
+from kivy.animation import Animation
+from kivy.clock import Clock
+from kivy.core.window import Window
+from kivy.metrics import dp
+from kivy.utils import platform
+from plyer import notification
+import websockets
+import ssl
+import json
+
+ssl_context = ssl.create_default_context()
+ssl_context.check_hostname = False
+ssl_context.verify_mode = ssl.CERT_NONE
+
+message_cache = []
+
+if platform == "android":
+    from android.permissions import request_permissions, Permission
+    request_permissions([
+        Permission.POST_NOTIFICATIONS
+    ])
+
+def is_emoji(char):
+    cp = ord(char)
+    
+    if cp in EMOJI_LIKE:
+        return True
+
+    return (
+        0x2194 <= cp <= 0x2199 or 0x21A9 <= cp <= 0x21AA or 0x231A <= cp <= 0x231B or 0x23E8 <= cp <= 0x23EF or 0x23F0 <= cp <= 0x23F3 or 0x23F8 <= cp <= 0x23FA or 0x25AA <= cp <= 0x25AB or 0x25FB <= cp <= 0x25FE or
+        0x2600 <= cp <= 0x2604 or 0x2614 <= cp <= 0x2615 or 0x2622 <= cp <= 0x2623 or 0x262E <= cp <= 0x262F or 0x2638 <= cp <= 0x263A or 0x2648 <= cp <= 0x2653 or 0x2665 <= cp <= 0x2666 or 0x267E <= cp <= 0x267F or
+        0x2692 <= cp <= 0x2697 or 0x269B <= cp <= 0x269C or 0x26A0 <= cp <= 0x26A1 or 0x26AA <= cp <= 0x26AB or 0x26B0 <= cp <= 0x26B1 or 0x26BD <= cp <= 0x26BE or 0x26C4 <= cp <= 0x26C5 or 0x26CE <= cp <= 0x26CF or
+        0x26E9 <= cp <= 0x26EA or 0x26F0 <= cp <= 0x26F5 or 0x26F7 <= cp <= 0x26FA or 0x2708 <= cp <= 0x270D or 0x2733 <= cp <= 0x2734 or 0x2753 <= cp <= 0x2755 or 0x2763 <= cp <= 0x2764 or 0x2795 <= cp <= 0x2797 or
+        0x2934 <= cp <= 0x2935 or 0x2B05 <= cp <= 0x2B07 or 0x2B1B <= cp <= 0x2B1C or 0x26D3 <= cp <= 0x26D4 or 0x1F0CF <= cp <= 0x1F171 or 0x1F17E <= cp <= 0x1F17F or 0x1F191 <= cp <= 0x1F19A or 0x1F201 <= cp <= 0x1F202 or
+        0x1F232 <= cp <= 0x1F23A or 0x1F250 <= cp <= 0x1F251 or 0x1F300 <= cp <= 0x1F31F or 0x1F320 <= cp <= 0x1F321 or 0x1F324 <= cp <= 0x1F393 or 0x1F396 <= cp <= 0x1F397 or 0x1F399 <= cp <= 0x1F39B or 0x1F39E <= cp <= 0x1F3F0 or
+        0x1F3F3 <= cp <= 0x1F3F5 or 0x1F3F7 <= cp <= 0x1F4FD or 0x1F500 <= cp <= 0x1F53D or 0x1F549 <= cp <= 0x1F54E or 0x1F550 <= cp <= 0x1F567 or 0x1F56F <= cp <= 0x1F570 or 0x1F573 <= cp <= 0x1F57A or 0x1F58A <= cp <= 0x1F58D or
+        0x1F595 <= cp <= 0x1F596 or 0x1F5A4 <= cp <= 0x1F5A5 or 0x1F5B1 <= cp <= 0x1F5B2 or 0x1F5C2 <= cp <= 0x1F5C4 or 0x1F5D1 <= cp <= 0x1F5D3 or 0x1F5DC <= cp <= 0x1F5DE or 0x1F5FA <= cp <= 0x1F6C5 or 0x1F6CB <= cp <= 0x1F6D2 or
+        0x1F6D5 <= cp <= 0x1F6D8 or 0x1F6DC <= cp <= 0x1F6E5 or 0x1F6EB <= cp <= 0x1F6EC or 0x1F6F3 <= cp <= 0x1F6FC or 0x1F7E0 <= cp <= 0x1F7EB or 0x1F90C <= cp <= 0x1F93A or 0x1F93C <= cp <= 0x1F945 or 0x1F947 <= cp <= 0x1FA7C or
+        0x1FA80 <= cp <= 0x1FA8A or 0x1FA8E <= cp <= 0x1FAC6 or 0x1FACD <= cp <= 0x1FADC or 0x1FADF <= cp <= 0x1FAEA or 0x1FAEF <= cp <= 0x1FAF8
+    )
+
+def format_text_with_fonts(text, bold=False):
+    parts = []
+    for char in text:
+        if is_emoji(char):
+            parts.append(f"[font=resources/fonts/seguiemj.ttf]{char}[/font]")
+        else:
+            if not bold: parts.append(f"[font=resources/fonts/segoeui.ttf]{char}[/font]")
+            else: parts.append(f"[font=resources/fonts/segoeuib.ttf]{char}[/font]")
+
+    return "".join(parts)
+
+def android_notify(title, message):
+    global message_cache
+
+    from jnius import autoclass
+    from kivy.clock import Clock
+
+    def _notify(dt):
+        global message_cache
+
+        PythonActivity = autoclass("org.kivy.android.PythonActivity")
+        Context = autoclass("android.content.Context")
+        NotificationManager = autoclass("android.app.NotificationManager")
+        NotificationChannel = autoclass("android.app.NotificationChannel")
+        NotificationBuilder = autoclass("android.app.Notification$Builder")
+        InboxStyle = autoclass("android.app.Notification$InboxStyle")
+        Intent = autoclass("android.content.Intent")
+        PendingIntent = autoclass("android.app.PendingIntent")
+        Build_VERSION = autoclass("android.os.Build$VERSION")
+
+        context = PythonActivity.mActivity
+        nm = context.getSystemService(Context.NOTIFICATION_SERVICE)
+
+        CHANNEL_ID = "chat_message"
+
+        if Build_VERSION.SDK_INT >= 26:
+            channel = NotificationChannel(
+                CHANNEL_ID,
+                "Chat messages",
+                NotificationManager.IMPORTANCE_HIGH
+            )
+            nm.createNotificationChannel(channel)
+            builder = NotificationBuilder(context, CHANNEL_ID)
+        else:
+            builder = NotificationBuilder(context)
+
+        # cache tin nhắn
+        message_cache.append(message)
+        message_cache = message_cache[-5:]  # giữ tối đa 5 dòng
+
+        style = InboxStyle()
+        for msg in message_cache:
+            style.addLine(msg)
+
+        style.setSummaryText(f"{len(message_cache)} tin nhắn mới")
+
+        intent = Intent(context, PythonActivity)
+        flags = PendingIntent.FLAG_UPDATE_CURRENT
+        if Build_VERSION.SDK_INT >= 23:
+            flags |= PendingIntent.FLAG_IMMUTABLE
+
+        pending_intent = PendingIntent.getActivity(
+            context, 0, intent, flags
+        )
+
+        builder.setContentTitle(title)
+        builder.setContentText(message)
+        builder.setStyle(style)
+        builder.setSmallIcon(context.getApplicationInfo().icon)
+        builder.setAutoCancel(True)
+        builder.setContentIntent(pending_intent)
+
+        nm.notify(1001, builder.build())  # ID CỐ ĐỊNH
+
+    _notify(0)
+
+# --- Notification wrapper ---
+def notify_message(title, message):
+    if platform == "android":
+        android_notify(title, message)
+    else:
+        notification.notify(title=title, message=message, timeout=5)
+
+Window.minimum_width, Window.minimum_height= 400, 500
+Window.softinput_mode = "below_target"
+
+bg = (255/255, 242/255, 242/255, 1)
+boxbg = (250/255, 212/255, 212/255, 1)
+menubg = (239/255, 159/255, 159/255, 1)
+btn = (244/255, 124/255, 124/255, 1)
+primarycolor = (0/255, 0/255, 0/255, 1)
+
+headers = {
+    "apikey": SUPABASE_KEY,
+    "Authorization": f"Bearer {SUPABASE_KEY}",
+    "Content-Type": "application/json"
+}
+
+# --- LimitedTextField ---
+class LimitedTextField(MDTextField):
+    def __init__(self, max_length=100, **kwargs):
+        super().__init__(**kwargs)
+        self.max_length = max_length
+
+    def insert_text(self, substring, from_undo=False):
+        if len(self.text) >= self.max_length:
+            return
+        if len(self.text) + len(substring) > self.max_length:
+            substring = substring[:self.max_length - len(self.text)]
+        super().insert_text(substring, from_undo=from_undo)
+
+# --- ChatApp ---
+class ChatApp(MDApp):
+    def build(self):
+        self.app_in_foreground = True
+
+        self.icon="resources/img/Icon.png"
+        self.title="luv"
+
+        self.uid_button=MDFillRoundFlatButton(text="Đặt UID", on_release=self.show_uid_dialog, md_bg_color=btn, text_color='white', pos_hint={"center_y": 0.5})
+        self.last_date = None
+        self.last_count = 0
+        if os.path.exists("uid.txt"):
+            with open("uid.txt", "r") as f:
+                self.user_id = f.read().strip()
+            self.uid_button.text = self.user_id
+        else:
+            self.user_id = None
+            Clock.schedule_once(lambda dt: self.show_uid_dialog())
+
+        # Main layout with improved spacing and styling
+        layout = MDBoxLayout(orientation="vertical", padding=[dp(20), dp(10), dp(20), dp(35)], spacing=dp(10), md_bg_color=bg)
+        
+        # Top bar with title
+        self.top_bar = MDBoxLayout(size_hint=(1, None), height=dp(50), padding=dp(5), spacing=dp(10))
+        self.top_icon = MDFillRoundFlatButton(
+            text=format_text_with_fonts("\U0001F496 ngha và hmn", True),
+            theme_text_color="Custom",
+            text_color=primarycolor,
+            md_bg_color=bg,
+            on_release=self.update
+        )
+        self.top_label = MDFillRoundFlatButton(
+            text="\u2600 <3 \u2B50",
+            theme_text_color="Custom",
+            line_color=btn,
+            md_bg_color=boxbg,
+            text_color=primarycolor,
+            font_name="resources/fonts/seguiemj.ttf",
+            on_release=self.change_text
+        )
+        self.top_bar.add_widget(self.top_icon)
+        self.top_bar.add_widget(MDBoxLayout(size_hint=(1, 1)))
+        self.top_bar.add_widget(self.top_label)
+        self.top_bar.add_widget(self.uid_button)
+        
+        # Message scroll area with better styling
+        self.msg_scroll = ScrollView(do_scroll_x=False, size_hint=(1, 1), scroll_y=0)
+        self.msg_list = MDBoxLayout(orientation="vertical", size_hint=(1, None), spacing=dp(10), padding=[0, dp(10), 0, dp(10)])
+        self.msg_list.bind(minimum_height=self.msg_list.setter('height'))
+        self.msg_scroll.add_widget(self.msg_list)
+        
+        # Input card with rounded design
+        self.input_card = MDCard(
+            orientation="vertical",
+            size_hint=(1, None),
+            height=dp(70),
+            padding=[dp(10), dp(10), dp(10), dp(10)],
+            spacing=dp(10),
+            radius=[dp(25), dp(25), dp(25), dp(25)],
+            md_bg_color=boxbg,
+            elevation=0
+        )
+        
+        # Text input layout
+        self.text_input = MDBoxLayout(size_hint=(1, None), height=dp(50), spacing=dp(5))
+        self.text_input.input = LimitedTextField(
+            hint_text="Nhập tin nhắn...",
+            line_color_normal=boxbg,
+            line_color_focus=boxbg,
+            hint_text_color=[0.75 - i for i in primarycolor],
+            hint_text_color_focus=primarycolor,
+            text_color_focus=primarycolor,
+            fill_color_normal=boxbg,
+            mode="round",
+            size_hint=(1, None),
+            pos_hint={'center_y': 0.5},
+            height=dp(30),
+            multiline=False,
+            font_name="resources/fonts/segoeui.ttf",
+            on_text_validate=self.send_msg
+        )
+        
+        self.text_input.button = MDIconButton(
+            icon='send-variant',
+            disabled=True,
+            theme_icon_color="Custom",
+            icon_color=btn,
+            size_hint=(None, None),
+            size=(dp(48), dp(48)),
+            pos_hint={"right": 1, "bottom": 0},
+            on_release=self.send_msg
+        )
+        
+        # Assemble input components
+        self.text_input.add_widget(self.text_input.input)
+        self.text_input.add_widget(self.text_input.button)
+        self.input_card.add_widget(self.text_input)
+        
+        # Bind text changes for button enable/disable
+        self.text_input.input.bind(text=self.on_text_change)
+        
+        # Assemble main layout
+        layout.add_widget(self.top_bar)
+        layout.add_widget(MDBoxLayout(size_hint=(1, None), md_bg_color=btn, height=dp(2), pos_hint={"center_x": 0.5}))  # Spacer
+        layout.add_widget(self.msg_scroll)
+        layout.add_widget(self.input_card)
+
+        self.load_messages()
+        self.listen_realtime()
+
+        return layout
+
+    def show_uid_dialog(self, *args):
+        self.uid_input = MDTextField(hint_text="Đặt UID nề bbi <3",
+                                    font_name="resources/fonts/segoeui.ttf",
+                                    line_color_normal=boxbg,
+                                    line_color_focus=boxbg,
+                                    hint_text_color=[0.75 - i for i in primarycolor],
+                                    hint_text_color_focus=primarycolor,
+                                    text_color_focus=primarycolor,
+                                    fill_color_normal=boxbg,
+                                    size_hint=(1, None),
+                                    pos_hint={'center_y': 0.5},
+                                    height=dp(30),
+                                    multiline=False)
+        self.dialog = MDDialog(
+            title="Nhập UID",
+            type="custom",
+            content_cls=self.uid_input,
+            buttons=[MDFillRoundFlatButton(text="OK", on_release=self.save_uid, md_bg_color=btn)],
+            md_bg_color=menubg
+        )
+        self.dialog.open()
+
+    def save_uid(self, *args):
+        uid = self.uid_input.text.strip()
+        if uid:
+            self.user_id = uid
+            self.uid_button.text = uid
+            with open("uid.txt", "w") as f:
+                f.write(uid)
+            self.dialog.dismiss()
+
+    def on_text_change(self, instance, value):
+        """Enable/disable send button based on text input"""
+        self.text_input.button.disabled = not value.strip()
+
+    def change_text(self, instance):
+        if instance.text=="\u2600 <3 \u2B50":
+            instance.text=str((datetime.now() - datetime.strptime("26/11/2025", "%d/%m/%Y")).days) + " ngày iu"
+        else: instance.text="\u2600 <3 \u2B50"
+
+    def send_msg(self, *args):
+        if not self.user_id:
+            self.show_uid_dialog()
+            return
+        msg = self.text_input.input.text
+        if msg:
+            url = f"{SUPABASE_URL}/rest/v1/messages"
+            data = {"sender": self.user_id, "content": msg, "created_at": time.strftime("%H:%M"), "date": time.strftime("%d/%m/%Y")}
+            res = requests.post(url, headers=headers, json=data)
+            if res.status_code == 201:
+                self.text_input.input.text = ""
+            else:
+                print("Error:", res.text)
+
+    def load_messages(self):
+        url = f"{SUPABASE_URL}/rest/v1/messages?select=*&order=date.asc,created_at.asc"
+        res = requests.get(url, headers=headers)
+        if res.status_code == 200:
+            rows = res.json()
+            for row in rows:
+                self.display_message(row['sender'], row['content'], row['created_at'], row['date'])
+            self.last_count = len(rows)
+            if self.msg_list.height > self.msg_scroll.height and self.msg_scroll.height != 0:
+                Animation(scroll_y=0, transition="out_quad").start(self.msg_scroll)
+
+    def display_message(self, sender, content, timestamp, date):
+        if self.last_date==None or self.last_date != date:
+            date_label = MDLabel(
+                text=f"[size={int(dp(12))}]{format_text_with_fonts(date)}[/size]",
+                halign="center",
+                theme_text_color="Custom",
+                text_color=primarycolor,
+                size_hint=(1, None),
+                height=dp(30),
+                markup=True
+            )
+            self.msg_list.add_widget(date_label)
+            self.last_date = date
+
+        """Display a message with modern UI styling"""
+        
+        # Check if last message is from same sender within 1 minute
+        should_merge = False
+        if len(self.msg_list.children) > 0:
+            last_widget = self.msg_list.children[0]
+            if hasattr(last_widget, 'sender') and last_widget.sender == sender:
+                try:
+                    current_time = datetime.strptime(timestamp, "%H:%M")
+                    last_time = datetime.strptime(last_widget.last_timestamp, "%H:%M")
+                    time_diff = abs((current_time - last_time).total_seconds())
+                    if time_diff <= 60:
+                        should_merge = True
+                except:
+                    pass
+        
+        if should_merge:
+            # Append to existing card
+            last_widget = self.msg_list.children[0]
+            msg_label = MDLabel(
+                text=format_text_with_fonts(content),
+                halign="left",
+                theme_text_color="Custom",
+                text_color=primarycolor,
+                size_hint=(1, None),
+                markup=True
+            )
+            msg_label.bind(texture_size=msg_label.setter('texture_size'))
+            msg_label.bind(texture_size=msg_label.setter('size'))
+            last_widget.add_widget(msg_label)
+            last_widget.last_timestamp = timestamp
+        else:
+            # Create new card
+            msg_card = MDCard(
+                orientation="vertical",
+                size_hint=(1, None),
+                padding=[dp(10), dp(10), dp(10), dp(10)],
+                spacing=dp(5),
+                md_bg_color=boxbg[:-1]+(0.25,),
+                radius=[dp(10), dp(10), dp(10), dp(10)],
+                elevation=0
+            )
+            msg_card.sender = sender
+            msg_card.last_timestamp = timestamp
+            
+            # Message header with sender name
+            header_layout = MDBoxLayout(size_hint=(1, None), height=dp(25), spacing=dp(5))
+            morning = datetime.strptime("05:00", "%H:%M").time()
+            evening = datetime.strptime("18:00", "%H:%M").time()
+            emoji = "\u2600" if morning <= datetime.strptime(timestamp, "%H:%M").time() <= evening else "\u2B50"
+            symbol = "\u2022"
+            sender_label = MDLabel(
+                text=f"[size={int(dp(14))}]{format_text_with_fonts(f'{sender} {symbol} {timestamp} {emoji}', True)}[/size]",
+                size_hint=(1, None),
+                height=dp(25),
+                theme_text_color="Custom",
+                text_color=primarycolor,
+                font_size=dp(14),
+                markup=True
+            )
+            header_layout.add_widget(sender_label)
+            
+            # Message content
+            msg_label = MDLabel(
+                text=format_text_with_fonts(content),
+                halign="left",
+                theme_text_color="Custom",
+                text_color=primarycolor,
+                size_hint=(1, None),
+                markup=True
+            )
+            msg_label.bind(texture_size=msg_label.setter('texture_size'))
+            msg_label.bind(texture_size=msg_label.setter('size'))
+            
+            msg_card.add_widget(header_layout)
+            msg_card.add_widget(msg_label)
+            msg_card.bind(minimum_height=msg_card.setter('height'))
+            
+            self.msg_list.add_widget(msg_card)
+    
+    def listen_realtime(self):
+
+        async def realtime_loop():
+            while True:  # 🔁 vòng reconnect
+                try:
+                    url = (
+                        "wss://fjhakjrxbdiowjkppgzy.supabase.co/realtime/v1/websocket"
+                        f"?apikey={SUPABASE_KEY}"
+                        f"&vsn=1.0.0"
+                    )
+
+                    async with websockets.connect(
+                        url,
+                        ssl=ssl_context,
+                        additional_headers={
+                            "Authorization": f"Bearer {SUPABASE_KEY}"
+                        },
+                        ping_interval=20,
+                        ping_timeout=20
+                    ) as ws:
+
+                        # Join channel
+                        join_msg = {
+                            "topic": "realtime:public:messages",
+                            "event": "phx_join",
+                            "payload": {},
+                            "ref": 1
+                        }
+                        await ws.send(json.dumps(join_msg))
+
+                        while True:
+                            msg = await ws.recv()
+                            data = json.loads(msg)
+
+                            if data.get("event") == "INSERT":
+                                record = data["payload"]["record"]
+
+                                sender = record["sender"]
+                                content = record["content"]
+                                timestamp = record["created_at"]
+                                date = record["date"]
+
+                                Clock.schedule_once(
+                                    lambda dt, s=sender, c=content, t=timestamp, d=date:
+                                    self.display_message(s, c, t, d)
+                                )
+
+                                if sender != self.user_id and (platform!="android" or not self.app_in_foreground):
+                                    notify_message(
+                                        "Tin nhắn mới",
+                                        f"{sender}: {content}"
+                                    )
+
+                except Exception as e:
+                    print("Realtime socket died:", e)
+                    await asyncio.sleep(3)  # ⏳ đợi rồi tự reconnect
+
+        def start():
+            asyncio.run(realtime_loop())
+        threading.Thread(target=start, daemon=True).start()
+
+    def show_updating_dialog(self):
+        self.update_dialog = MDDialog(
+            title="Đang cập nhật",
+            text="Vui lòng chờ trong giây lát...",
+            md_bg_color=menubg,
+            auto_dismiss=False
+        )
+        self.update_dialog.open()
+
+    def show_update_success(self):
+        dialog = MDDialog(
+            title="Hoàn tất",
+            text="Cập nhật thành công 🎉",
+            md_bg_color=menubg,
+            buttons=[
+                MDFillRoundFlatButton(
+                    text="OK",
+                    md_bg_color=btn,
+                    on_release=lambda x: dialog.dismiss()
+                )
+            ]
+        )
+        dialog.open()
+
+    def update(self, *args):
+        def worker():
+            try:
+                # ví dụ tải folder resources/update
+                download_file(
+                    repo="luv",                 # tên repo GitHub
+                    file_path="main.script",      # path trong repo
+                    name="temp.script"             # thư mục local
+                )
+
+                # quay về UI thread khi xong
+                Clock.schedule_once(lambda dt: self.finish_update())
+
+            except Exception as e:
+                print("Update error:", e)
+                Clock.schedule_once(lambda dt: self.update_dialog.dismiss())
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def finish_update(self):
+        if hasattr(self, "update_dialog"):
+            self.update_dialog.dismiss()
+
+        self.show_update_success()
+
+    def on_pause(self):
+        print("App paused")
+        self.app_in_foreground = False
+        return True
+
+    def on_resume(self):
+        global message_cache
+        print("App resumed")
+        self.app_in_foreground = True
+        message_cache = []
+        return True
+
+ChatApp().run()
