@@ -61,6 +61,7 @@ from kivy.clock import Clock
 from kivy.core.window import Window
 from kivy.metrics import dp
 from kivy.utils import platform
+from kivy.properties import *
 from plyer import notification
 import websockets
 import ssl
@@ -180,6 +181,14 @@ def notify_message(title, message):
     else:
         notification.notify(title=title, message=message, timeout=5)
 
+def expand_vertical(w, height):
+    anim=Animation(height=height, opacity=1, duration=0.3, transition='in_quart')
+    anim.start(w)
+
+def collapse_vertical(w):
+    anim=Animation(height=0, opacity=0, duration=0.3, transition='out_quart')
+    anim.start(w)
+
 Window.minimum_width, Window.minimum_height= 400, 500
 Window.softinput_mode = "below_target"
 
@@ -207,6 +216,15 @@ class LimitedTextField(MDTextField):
         if len(self.text) + len(substring) > self.max_length:
             substring = substring[:self.max_length - len(self.text)]
         super().insert_text(substring, from_undo=from_undo)
+
+class CustomMDBoxLayout(MDBoxLayout):
+    opacity = NumericProperty(0)
+
+    def add_widget(self, widget, *args, **kwargs):
+        if widget.parent: widget.parent.remove_widget(widget)
+        super().add_widget(widget, *args, **kwargs)
+        widget.opacity = self.opacity
+        self.bind(opacity=lambda instance, value: setattr(widget, 'opacity', value))
 
 # --- ChatApp ---
 class ChatApp(MDApp):
@@ -309,10 +327,17 @@ class ChatApp(MDApp):
         
         # Bind text changes for button enable/disable
         self.text_input.input.bind(text=self.on_text_change)
-        
+
+        self.noti=CustomMDBoxLayout(size_hint=(1, None), height=dp(0), padding=dp(5))
+        self.noti.label=MDLabel(text="Có tin nhắn mới nề <3", pos_hint={"center_y": 0.5, "bottom": 0})
+        self.noti.button=MDFillRoundFlatButton(text="Đọc thui", md_bg_color=btn, theme_text_color="Custom", text_color=bg, on_release=lambda instance: self.load_messages(instance=None), disabled=True)
+        self.noti.add_widget(self.noti.label)
+        self.noti.add_widget(self.noti.button)
+
         # Assemble main layout
         layout.add_widget(self.top_bar)
         layout.add_widget(MDBoxLayout(size_hint=(1, None), md_bg_color=btn, height=dp(2), pos_hint={"center_x": 0.5}))  # Spacer
+        layout.add_widget(self.noti)
         layout.add_widget(self.msg_scroll)
         layout.add_widget(self.input_card)
 
@@ -323,7 +348,7 @@ class ChatApp(MDApp):
     
     def date_picker_open(self):
         self.menu.dismiss()
-        date_dialog = MDDatePicker(title_input="Nhập ngày check", title="Chọn ngày check", primary_color=menubg, accent_color=bg, selector_color=btn, text_button_color="black", input_field_background_color_focus=boxbg, input_field_background_color_normal=boxbg[:-1]+(0.25,), input_field_text_color_focus="black", text_weekday_color=btn, helper_text="")
+        date_dialog = MDDatePicker(title_input="Nhập ngày check", title="Chọn ngày check", primary_color=menubg, accent_color=bg, selector_color=btn, text_button_color="black", input_field_background_color_focus=boxbg, input_field_background_color_normal=boxbg[:-1]+(0.25,), input_field_text_color_focus="black", text_weekday_color=btn, helper_text="", text_current_color=menubg)
         date_dialog.bind(on_save=self.load_messages)
         date_dialog.open()
     
@@ -404,7 +429,7 @@ class ChatApp(MDApp):
             self.show_uid_dialog()
             return
         
-        if self.lookup and datetime.strptime(self.lookup_date, "%d/%m/%Y") < datetime.now():
+        if self.lookup and self.lookup_date != datetime.strftime(datetime.now(), "%d/%m/%Y"):
             self.lookup=False
             self.msg_list.clear_widgets()
             self.load_messages()
@@ -420,11 +445,14 @@ class ChatApp(MDApp):
                 print("Error:", res.text)
 
     def load_messages(self, instance=None, date_str=datetime.strftime(datetime.now(), '%d/%m/%Y'), data_range=None):
+        if not self.noti.button.disabled:
+            self.noti.button.disabled=True
+            collapse_vertical(self.noti)
         if instance:
             date_str=datetime.strptime(str(date_str), "%Y-%m-%d").strftime("%d/%m/%Y")
+            if date_str==self.lookup_date: return
             self.lookup=True
             self.lookup_date=date_str
-            if date_str==datetime.strftime(datetime.now(), '%d/%m/%Y'): return
             self.msg_list.clear_widgets()
         url = f"{SUPABASE_URL}/rest/v1/messages?select=*&date=eq.{date_str}&order=created_at.asc"
         res = requests.get(url, headers=headers)
@@ -434,6 +462,7 @@ class ChatApp(MDApp):
                 for row in rows:
                     self.display_message(row['sender'], row['content'], row['created_at'], row['date'])
             elif datetime.strptime(date_str, "%d/%m/%Y") < datetime.now(): self.display_message('ngha' if self.user_id=='hmn' else 'hmn', 'Không có tin nhắn nào cho ngày này hết ;-;', '00:00', date_str)
+            elif datetime.strptime(date_str, "%d/%m/%Y") > datetime.now(): self.display_message('ngha' if self.user_id=='hmn' else 'hmn', 'Mong chờ những lời iu thương của {} qaaa :3'.format('hmn' if self.user_id=='hmn' else 'ngha'), '00:00', date_str)
             if self.msg_list.height > self.msg_scroll.height and self.msg_scroll.height != 0:
                 Animation(scroll_y=0, transition="out_quad").start(self.msg_scroll)
 
@@ -532,7 +561,6 @@ class ChatApp(MDApp):
             self.msg_list.add_widget(msg_card)
     
     def listen_realtime(self):
-
         async def realtime_loop():
             while True:  # 🔁 vòng reconnect
                 try:
@@ -573,10 +601,14 @@ class ChatApp(MDApp):
                                 timestamp = record["created_at"]
                                 date = record["date"]
 
-                                Clock.schedule_once(
-                                    lambda dt, s=sender, c=content, t=timestamp, d=date:
-                                    self.display_message(s, c, t, d)
-                                )
+                                if self.lookup and self.lookup_date != datetime.strftime(datetime.now(), "%d/%m/%Y"):
+                                    self.noti.button.disabled=False
+                                    expand_vertical(self.noti, dp(40))
+                                else:
+                                    Clock.schedule_once(
+                                        lambda dt, s=sender, c=content, t=timestamp, d=date:
+                                        self.display_message(s, c, t, d)
+                                    )
 
                                 if sender != self.user_id and (platform!="android" or not self.app_in_foreground):
                                     notify_message(
