@@ -45,6 +45,10 @@ import os
 import requests
 import threading
 import time
+import random
+import websockets
+import ssl
+import json
 from datetime import datetime
 from kivymd.app import MDApp
 from kivymd.uix.boxlayout import MDBoxLayout
@@ -63,9 +67,6 @@ from kivy.metrics import dp
 from kivy.utils import platform
 from kivy.properties import *
 from plyer import notification
-import websockets
-import ssl
-import json
 
 ssl_context = ssl.create_default_context()
 ssl_context.check_hostname = False
@@ -468,6 +469,7 @@ class ChatApp(MDApp):
             res = requests.post(url, headers=headers, json=data)
             if res.status_code == 201:
                 self.text_input.input.text = ""
+                if 'iu' in msg.strip().split(): Clock.schedule_once(lambda x: self.spawn_emoji(multi=True))
             else:
                 print("Error:", res.text)
 
@@ -591,24 +593,61 @@ class ChatApp(MDApp):
             
             self.msg_list.add_widget(msg_card)
 
-    def spawn_emoji(self, emoji="\U0001F496", pos=(0, 0)):
-        label = MDLabel(
-            text=format_text_with_fonts(emoji),
-            font_size="32sp",
-            size_hint=(None, None),
-            pos=(pos[0] - 25, pos[1] - 25),
-            markup=True
-        )
+    def spawn_emoji(self, emoji="\U0001F496", pos=(0, 0), multi=False):
+        if not multi:
+            label = MDLabel(
+                text=format_text_with_fonts(emoji),
+                font_size="32sp",
+                size_hint=(None, None),
+                pos=(pos[0] - 25, pos[1] - 25),
+                markup=True
+            )
 
-        Window.add_widget(label)
+            Window.add_widget(label)
 
-        # animation bay lên + mờ dần
-        anim = (
-            Animation(y=label.y + 60, opacity=0, duration=0.8)
-        )
+            # animation bay lên + mờ dần
+            anim = (
+                Animation(y=label.y + 60, opacity=0, duration=0.8)
+            )
 
-        anim.bind(on_complete=lambda *x: Window.remove_widget(label))
-        anim.start(label)
+            anim.bind(on_complete=lambda *x: Window.remove_widget(label))
+            anim.start(label)
+        else:
+            count = random.randint(10, 15)
+
+            win_w, win_h = Window.size
+
+            for _ in range(count):
+                # spawn ở đáy màn hình
+                x = random.randint(0, int(win_w - 50))
+                y = -50
+
+                # đích đến random toàn màn hình
+                target_y = random.randint(int(win_h * 0.3), int(win_h))
+
+                label = MDLabel(
+                    text=format_text_with_fonts(emoji),
+                    font_size="32sp",
+                    size_hint=(None, None),
+                    pos=(x, y),
+                    opacity=1,
+                    markup=True
+                )
+
+                Window.add_widget(label)
+
+                # bay nhẹ lên + fade
+                dy = random.randint(40, 100)
+
+                anim = Animation(
+                    y=target_y,
+                    opacity=0,
+                    duration=random.uniform(3, 5),
+                    t="out_quad"
+                )
+
+                anim.bind(on_complete=lambda *x: Window.remove_widget(label))
+                anim.start(label)
     
     def listen_realtime(self):
         async def realtime_loop():
