@@ -298,7 +298,7 @@ class ChatApp(MDApp):
         self.top_bar.add_widget(self.uid_button)
         
         # Message scroll area with better styling
-        self.msg_scroll = ScrollView(do_scroll_x=False, size_hint=(1, 1), scroll_y=0)
+        self.msg_scroll = ScrollView(do_scroll_x=False, size_hint=(1, 1))
         self.msg_list = MDBoxLayout(orientation="vertical", size_hint=(1, None), spacing=dp(10), padding=[0, dp(10), 0, dp(10)])
         self.msg_list.bind(minimum_height=self.msg_list.setter('height'))
         self.msg_scroll.add_widget(self.msg_list)
@@ -488,6 +488,10 @@ class ChatApp(MDApp):
                     self.display_message(row['sender'], row['content'], row['created_at'], row['date'])
             elif datetime.strptime(date_str, "%d/%m/%Y") < datetime.now() and self.lookup_date != datetime.strftime(datetime.now(), "%d/%m/%Y"): self.display_message('ngha' if self.user_id=='hmn' else 'hmn', 'Không có tin nhắn nào cho ngày này hết ;-;', '00:00', date_str)
             elif datetime.strptime(date_str, "%d/%m/%Y") > datetime.now() or self.lookup_date == datetime.strftime(datetime.now(), "%d/%m/%Y"): self.display_message('ngha' if self.user_id=='hmn' else 'hmn', 'Mong chờ những lời iu thương của {} qaaa :3'.format('hmn' if self.user_id=='hmn' else 'ngha'), '00:00', date_str)
+            Clock.schedule_once(self.scroll_to_bottom)
+
+    def scroll_to_bottom(self, *args):        
+        if self.msg_scroll.viewport_size[1] > self.msg_scroll.height:
             Animation(scroll_y=0, transition="out_quad").start(self.msg_scroll)
 
     def display_message(self, sender, content, timestamp, date):            
