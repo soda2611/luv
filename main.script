@@ -72,6 +72,7 @@ ssl_context.check_hostname = False
 ssl_context.verify_mode = ssl.CERT_NONE
 
 message_cache = []
+if not os.path.exists("build.txt"): download_file('luv', 'build.txt', 'build.txt')
 with open('build.txt', encoding="utf-8") as fi: build=fi.read()
 
 if platform == "android":
@@ -683,8 +684,6 @@ class ChatApp(MDApp):
                 assets=["main.script"]
                 for asset in assets:
                     download_file(repo="luv", file_path=asset, name=f"temp_{asset}")
-
-                download_file('luv', 'build.txt', 'build.txt')
 
                 with open("main.script", "w", encoding="utf-8") as fo, open("temp_main.script", encoding="utf-8") as fi: fo.write(fi.read())
                 os.remove("temp_main.script")
