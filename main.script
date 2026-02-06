@@ -72,6 +72,8 @@ ssl_context.check_hostname = False
 ssl_context.verify_mode = ssl.CERT_NONE
 
 message_cache = []
+need_update = False
+with open('build.txt', encoding="utf-8") as fi: build=fi.read()
 
 if platform == "android":
     from android.permissions import request_permissions, Permission
@@ -683,6 +685,8 @@ class ChatApp(MDApp):
                 for asset in assets:
                     download_file(repo="luv", file_path=asset, name=f"temp_{asset}")
 
+                download_file('luv', 'build.txt', 'build.txt')
+
                 with open("main.script", "w", encoding="utf-8") as fo, open("temp_main.script", encoding="utf-8") as fi: fo.write(fi.read())
                 os.remove("temp_main.script")
 
@@ -701,6 +705,21 @@ class ChatApp(MDApp):
 
         self.show_update_success()
 
+    def on_start(self):
+        global need_update, build
+
+        url = f"{SUPABASE_URL}/rest/v1/version?select=*&date=eq.{datetime.strftime(datetime.now(), '%d/%m/%Y')}&order=build.asc"
+        res = requests.get(url, headers=headers)
+        if res.status_code == 200:
+            rows = res.json()
+            print(datetime.strftime(datetime.now(), '%d/%m/%Y'))
+            print(rows and rows[-1]['build'])
+            if rows and rows[-1]['build']!=build:
+                need_update=True
+                with open('build.txt', "w", encoding='utf-8') as fo: fo.write(rows[-1]['build'])
+
+        print('build checked')
+
     def on_pause(self):
         print("App paused")
         self.app_in_foreground = False
@@ -713,7 +732,7 @@ class ChatApp(MDApp):
         message_cache = []
         return True
 
-def apply_temp_updates():
+'''def apply_temp_updates():
     mapping = {
         "resources/temp_fonts": "resources/fonts",
         "resources/temp_img": "resources/img"
@@ -735,7 +754,7 @@ def apply_temp_updates():
                     shutil.copy(src, dst)
 
             # xoá temp sau khi copy xong
-            shutil.rmtree(temp_dir)
+            shutil.rmtree(temp_dir)'''
 
 apply_temp_updates()
 ChatApp().run()
