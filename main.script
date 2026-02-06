@@ -52,6 +52,7 @@ import json
 from datetime import datetime
 from kivymd.app import MDApp
 from kivymd.uix.boxlayout import MDBoxLayout
+from kivymd.uix.floatlayout import MDFloatLayout
 from kivymd.uix.textfield import MDTextField
 from kivymd.uix.label import MDLabel
 from kivymd.uix.button import MDIconButton, MDFillRoundFlatButton
@@ -65,7 +66,9 @@ from kivy.clock import Clock
 from kivy.core.window import Window
 from kivy.metrics import dp
 from kivy.utils import platform
+from kivy.uix.widget import Widget
 from kivy.properties import *
+from kivy.graphics import Line, PushMatrix, PopMatrix, Translate, Color
 from plyer import notification
 
 ssl_context = ssl.create_default_context()
@@ -73,6 +76,7 @@ ssl_context.check_hostname = False
 ssl_context.verify_mode = ssl.CERT_NONE
 
 message_cache = []
+draw_mode=False
 if not os.path.exists("build.txt"): download_file('luv', 'build.txt', 'build.txt')
 with open('build.txt', encoding="utf-8") as fi: build=fi.read()
 
@@ -254,6 +258,185 @@ class CustomMDBoxLayout(MDBoxLayout):
         widget.opacity = self.opacity
         self.bind(opacity=lambda instance, value: setattr(widget, 'opacity', value))
 
+# ---------- Utils ----------
+
+def stroke_in_viewport(stroke, vp):
+    min_x = min(p[0] for p in stroke["points"])
+    max_x = max(p[0] for p in stroke["points"])
+    min_y = min(p[1] for p in stroke["points"])
+    max_y = max(p[1] for p in stroke["points"])
+
+    vx1, vy1, vx2, vy2 = vp
+    return not (max_x < vx1 or min_x > vx2 or max_y < vy1 or min_y > vy2)
+
+
+# ---------- Draw Board ----------
+class InfiniteDrawBoard(Widget):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+        self.strokes = []
+        self.current_stroke = None
+
+        self.cam_x = 0
+        self.cam_y = 0
+
+        self.active_touches = {}   # touch.id -> touch
+        self.dragging = False
+        self.last_touch = None     # cho chuột phải
+        self.last_center = None    # cho 2 ngón
+
+    # ---------- helpers ----------
+
+    def get_touch_center(self):
+        if len(self.active_touches) < 2:
+            return None
+
+        xs = [t.x for t in self.active_touches.values()]
+        ys = [t.y for t in self.active_touches.values()]
+        return (sum(xs) / len(xs), sum(ys) / len(ys))
+
+    # ---------- Touch ----------
+
+    def on_touch_down(self, touch):
+        if not self.collide_point(*touch.pos):
+            return False
+
+        # 🖱 Chuột phải drag (GIỮ NGUYÊN)
+        if touch.button == "right":
+            self.dragging = True
+            self.last_touch = touch.pos
+            return True
+
+        # 👆 Touch (cảm ứng)
+        touch.grab(self)
+        self.active_touches[touch.id] = touch
+
+        # ✌️ 2 ngón → drag
+        if len(self.active_touches) == 2:
+            self.dragging = True
+            self.last_center = self.get_touch_center()
+            return True
+
+        # 👆 1 ngón → vẽ
+        if len(self.active_touches) == 1:
+            wx = touch.x + self.cam_x
+            wy = touch.y + self.cam_y
+            self.current_stroke = {
+                "points": [(wx, wy)],
+                "width": 2,
+                "color": (0, 0, 0, 1)
+            }
+            return True
+
+        return True
+
+    def on_touch_move(self, touch):
+        # 🖱 Chuột phải drag
+        if self.dragging and touch.button == "right":
+            dx = touch.x - self.last_touch[0]
+            dy = touch.y - self.last_touch[1]
+            self.cam_x -= dx
+            self.cam_y -= dy
+            self.last_touch = touch.pos
+            self.schedule_redraw()
+            return True
+
+        # ✌️ Drag bằng 2 ngón
+        if self.dragging and len(self.active_touches) >= 2:
+            center = self.get_touch_center()
+            if center and self.last_center:
+                dx = center[0] - self.last_center[0]
+                dy = center[1] - self.last_center[1]
+                self.cam_x -= dx
+                self.cam_y -= dy
+                self.last_center = center
+                self.schedule_redraw()
+            return True
+
+        # 👆 Vẽ bằng 1 ngón
+        if len(self.active_touches) == 1 and self.current_stroke:
+            wx = touch.x + self.cam_x
+            wy = touch.y + self.cam_y
+            self.current_stroke["points"].append((wx, wy))
+            self.schedule_redraw()
+            return True
+
+        return True
+
+    def on_touch_up(self, touch):
+        # 🖱 Chuột phải
+        if touch.button == "right":
+            self.dragging = False
+            self.last_touch = None
+            return True
+
+        # 👆 Touch
+        if touch.grab_current is self:
+            touch.ungrab(self)
+            self.active_touches.pop(touch.id, None)
+
+        # Kết thúc drag 2 ngón
+        if len(self.active_touches) < 2:
+            self.dragging = False
+            self.last_center = None
+
+        # Kết thúc stroke
+        if len(self.active_touches) == 0 and self.current_stroke:
+            self.strokes.append(self.current_stroke)
+            self.current_stroke = None
+            self.schedule_redraw()
+
+        return True
+
+    # ---------- Render ----------
+
+    def schedule_redraw(self):
+        Clock.unschedule(self.redraw)
+        Clock.schedule_once(self.redraw, 0)
+
+    def flatten_points(self, points):
+        out = []
+        for x, y in points:
+            out.extend([x, y])
+        return out
+
+    def redraw(self, *args):
+        self.canvas.clear()
+
+        vw, vh = Window.size
+        viewport = (
+            self.cam_x,
+            self.cam_y,
+            self.cam_x + vw,
+            self.cam_y + vh
+        )
+
+        with self.canvas:
+            PushMatrix()
+            Translate(-self.cam_x, -self.cam_y, 0)
+
+            for stroke in self.strokes:
+                if stroke_in_viewport(stroke, viewport):
+                    Color(*stroke["color"])
+                    Line(
+                        points=self.flatten_points(stroke["points"]),
+                        width=stroke["width"]
+                    )
+
+            if self.current_stroke:
+                Color(*self.current_stroke["color"])
+                Line(
+                    points=self.flatten_points(self.current_stroke["points"]),
+                    width=self.current_stroke["width"]
+                )
+
+            PopMatrix()
+
+
+class OverlayContainer(MDFloatLayout):
+    pass
+
 # --- ChatApp ---
 class ChatApp(MDApp):
     def build(self):
@@ -303,8 +486,13 @@ class ChatApp(MDApp):
         # Message scroll area with better styling
         self.msg_scroll = ScrollView(do_scroll_x=False, size_hint=(1, 1))
         self.msg_list = MDBoxLayout(orientation="vertical", size_hint=(1, None), spacing=dp(10), padding=[0, dp(10), 0, dp(10)])
+        self.container = OverlayContainer(size_hint=(1, None))
+        self.draw_canvas = InfiniteDrawBoard()
         self.msg_list.bind(minimum_height=self.msg_list.setter('height'))
-        self.msg_scroll.add_widget(self.msg_list)
+        self.msg_list.bind(height=self.sync_overlay_height)
+        self.container.add_widget(self.msg_list)
+        self.container.add_widget(self.draw_canvas)
+        self.msg_scroll.add_widget(self.container)
         
         # Input card with rounded design
         self.input_card = MDCard(
@@ -365,7 +553,7 @@ class ChatApp(MDApp):
         # Assemble main layout
         layout.add_widget(self.top_bar)
         layout.add_widget(MDBoxLayout(size_hint=(1, None), md_bg_color=btn, height=dp(2), pos_hint={"center_x": 0.5}))  # Spacer
-        layout.add_widget(self.noti)
+        layout.add_widget(self.noti)    
         layout.add_widget(self.msg_scroll)
         layout.add_widget(self.input_card)
 
@@ -374,6 +562,9 @@ class ChatApp(MDApp):
 
         return layout
     
+    def sync_overlay_height(self, *args):
+        self.container.height = self.msg_list.height
+
     def date_picker_open(self):
         self.menu.dismiss()
         date_dialog = MDDatePicker(title_input="Nhập ngày check", title="Chọn ngày check", primary_color=menubg, accent_color=bg, selector_color=btn, text_button_color="black", input_field_background_color_focus=boxbg, input_field_background_color_normal=boxbg[:-1]+(0.25,), input_field_text_color_focus="black", text_weekday_color=btn, helper_text="", text_current_color=menubg)
@@ -382,6 +573,14 @@ class ChatApp(MDApp):
     
     def menu_open(self, instance):
         menu_items = [
+            {
+                "text": "Mở chế độ vẽ" if not draw_mode else "Tắt chế độ vẽ",
+                "text_color": primarycolor,
+                "trailing_icon": "brush",
+                "theme_trailing_icon_color": "Custom",
+                "trailing_icon_color": primarycolor,
+                "on_release": self.draw_mode
+            },
             {
                 "text": "Check tin nhắn cũ",
                 "text_color": primarycolor,
@@ -409,6 +608,11 @@ class ChatApp(MDApp):
             position="bottom"
         )
         self.menu.open()
+
+    def draw_mode(self, *args):
+        global draw_mode
+        self.msg_scroll.do_scroll, draw_mode=[True, False] if draw_mode else [False, True]
+        self.menu.dismiss()
 
     def show_uid_dialog(self, *args):
         try: self.menu.dismiss()
@@ -469,7 +673,7 @@ class ChatApp(MDApp):
             res = requests.post(url, headers=headers, json=data)
             if res.status_code == 201:
                 self.text_input.input.text = ""
-                if 'iu' in msg.lower().strip('.,!?').split(): Clock.schedule_once(lambda x: self.spawn_emoji(multi=True))
+                if 'iu' in msg.strip().split(): Clock.schedule_once(lambda x: self.spawn_emoji(multi=True))
             else:
                 print("Error:", res.text)
 
