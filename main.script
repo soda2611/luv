@@ -596,7 +596,6 @@ class ChatApp(MDApp):
             text=format_text_with_fonts(emoji),
             font_size="32sp",
             size_hint=(None, None),
-            size=(50, 50),
             pos=(pos[0] - 25, pos[1] - 25),
             markup=True
         )
