@@ -550,7 +550,8 @@ class ChatApp(MDApp):
                 spacing=dp(5),
                 md_bg_color=boxbg[:-1]+(0.25,),
                 radius=[dp(10), dp(10), dp(10), dp(10)],
-                elevation=0
+                elevation=0,
+                on_release=lambda x: self.spawn_emoji(pos=Window.mouse_pos)
             )
             msg_card.sender = sender
             msg_card.last_timestamp = timestamp
@@ -589,6 +590,26 @@ class ChatApp(MDApp):
             msg_card.bind(minimum_height=msg_card.setter('height'))
             
             self.msg_list.add_widget(msg_card)
+
+    def spawn_emoji(self, emoji="\U0001F496", pos=(0, 0)):
+        label = MDLabel(
+            text=format_text_with_fonts(emoji),
+            font_size="32sp",
+            size_hint=(None, None),
+            size=(50, 50),
+            pos=(pos[0] - 25, pos[1] - 25),
+            markup=True
+        )
+
+        Window.add_widget(label)
+
+        # animation bay lên + mờ dần
+        anim = (
+            Animation(y=label.y + 60, opacity=0, duration=0.8)
+        )
+
+        anim.bind(on_complete=lambda *x: Window.remove_widget(label))
+        anim.start(label)
     
     def listen_realtime(self):
         async def realtime_loop():
