@@ -469,7 +469,7 @@ class ChatApp(MDApp):
             res = requests.post(url, headers=headers, json=data)
             if res.status_code == 201:
                 self.text_input.input.text = ""
-                if 'iu' in msg.strip().split(): Clock.schedule_once(lambda x: self.spawn_emoji(multi=True))
+                if 'iu' in msg.lower().strip('.,!?').split(): Clock.schedule_once(lambda x: self.spawn_emoji(multi=True))
             else:
                 print("Error:", res.text)
 
