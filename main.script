@@ -914,7 +914,6 @@ class ChatApp(MDApp):
                                         Clock.schedule_once(
                                             lambda dt, r=record:
                                             self.spawn_emoji(
-                                                emoji=r["emoji"],
                                                 pos=(r["x"], r["y"])
                                             )
                                         )
