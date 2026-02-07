@@ -272,92 +272,92 @@ def stroke_in_viewport(stroke, vp):
 
 # ---------- Draw Board ----------
 class InfiniteDrawBoard(Widget):
-    def __init__(self, msg_scroll, **kwargs):
+
+    def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-        self.msg_scroll = msg_scroll
-
-        self.strokes = []
+        self.strokes = []               # local + remote strokes
+        self.remote_strokes = {}        # sender_id -> stroke
         self.current_stroke = None
+        self.active_touches = {}
 
         self.cam_x = 0
         self.cam_y = 0
 
-        self.active_touches = {}
-
-    # ---------- Touch ----------
-
+    # ---------------------------
+    # TOUCH
+    # ---------------------------
     def on_touch_down(self, touch):
-        if not self.collide_point(*touch.pos):
-            return False
-        
         if not draw_mode:
             return False
-        
-        touch.grab(self)
+
         self.active_touches[touch.uid] = touch
 
         if len(self.active_touches) == 1:
             wx = touch.x + self.cam_x
             wy = touch.y + self.cam_y
+
             self.current_stroke = {
                 "points": [(wx, wy)],
                 "width": 2,
-                "color": (0, 0, 0, 1)
+                "color": (0, 0, 0, 1),
             }
+            self.strokes.append(self.current_stroke)
+            self.schedule_redraw()
             return True
 
-        return True
+        return False
 
     def on_touch_move(self, touch):
         if not draw_mode:
-          return False
+            return False
 
-        if len(self.active_touches) == 1 and self.current_stroke:
+        if touch.uid not in self.active_touches:
+            return False
+
+        if self.current_stroke and len(self.active_touches) == 1:
             wx = touch.x + self.cam_x
             wy = touch.y + self.cam_y
+
             self.current_stroke["points"].append((wx, wy))
+
+            # 🔥 realtime gửi từng đoạn
+            self.send_stroke_end(self.current_stroke)
+
             self.schedule_redraw()
             return True
 
-        return True
+        return False
 
     def on_touch_up(self, touch):
-        if not draw_mode:
-            return False
-
-        if touch.grab_current is not self:
-            return False
-
-        touch.ungrab(self)
-        self.active_touches.pop(touch.uid, None)
+        if touch.uid in self.active_touches:
+            self.active_touches.pop(touch.uid)
 
         if self.current_stroke:
-            stroke = self.current_stroke
-            self.strokes.append(stroke)
-
-            # 🔥 GỬI REALTIME
-            self.send_stroke(stroke)
-
             self.current_stroke = None
-            self.schedule_redraw()
 
         return True
 
-    def send_stroke(self, stroke):
-        w, h = Window.size
+    # ---------------------------
+    # SEND REALTIME
+    # ---------------------------
+    def send_stroke_end(self, stroke):
+        if len(stroke["points"]) < 2:
+            return
 
-        norm_points = [
-            (x / w, y / h) for x, y in stroke["points"]
-        ]
+        w, h = Window.size
+        p1, p2 = stroke["points"][-2:]
 
         data = {
             "sender": MDApp.get_running_app().user_id,
-            "points": norm_points,
+            "points": [
+                [p1[0]/w, p1[1]/h],
+                [p2[0]/w, p2[1]/h]
+            ],
             "width": stroke["width"],
-            "color": stroke["color"],
+            "color": list(stroke["color"]),
             "created_at": time.strftime("%H:%M"),
-            "date": time.strftime("%d/%m/%Y")
+            "date": time.strftime("%d/%m/%Y"),
         }
 
         threading.Thread(
@@ -369,50 +369,63 @@ class InfiniteDrawBoard(Widget):
             daemon=True
         ).start()
 
-    # ---------- Render ----------
+    # ---------------------------
+    # RECEIVE REMOTE
+    # ---------------------------
+    def draw_remote_stroke(self, record):
+        sender = record.get("sender")
+        if not sender or sender == MDApp.get_running_app().user_id:
+            return
 
+        w, h = Window.size
+        points = [(x*w, y*h) for x, y in record.get("points", [])]
+
+        if record.get("partial"):
+            stroke = self.remote_strokes.get(sender)
+            if not stroke:
+                stroke = {
+                    "points": [],
+                    "width": record.get("width", 2),
+                    "color": tuple(record.get("color", (0, 0, 0, 1))),
+                }
+                self.remote_strokes[sender] = stroke
+                self.strokes.append(stroke)
+
+            stroke["points"].extend(points)
+
+        else:
+            # kết thúc stroke
+            self.remote_strokes.pop(sender, None)
+
+        self.schedule_redraw()
+
+    # ---------------------------
+    # REDRAW
+    # ---------------------------
     def schedule_redraw(self):
         if not hasattr(self, "_redraw_ev"):
             self._redraw_ev = Clock.schedule_interval(self.redraw, 1/60)
 
-    def flatten_points(self, points):
-        out = []
-        for x, y in points:
-            out.extend([x, y])
-        return out
-
     def redraw(self, *args):
         self.canvas.clear()
 
-        vw, vh = Window.size
-        viewport = (
-            self.cam_x,
-            self.cam_y,
-            self.cam_x + vw,
-            self.cam_y + vh
-        )
-
         with self.canvas:
-            PushMatrix()
-            Translate(-self.cam_x, -self.cam_y, 0)
-
             for stroke in self.strokes:
-                if stroke_in_viewport(stroke, viewport):
-                    Color(*stroke["color"])
-                    Line(
-                        points=self.flatten_points(stroke["points"]),
-                        width=stroke["width"]
-                    )
+                if len(stroke["points"]) < 2:
+                    continue
 
-            if self.current_stroke:
-                Color(*self.current_stroke["color"])
+                Color(*list(stroke["color"]))
                 Line(
-                    points=self.flatten_points(self.current_stroke["points"]),
-                    width=self.current_stroke["width"]
+                    points=[c for p in stroke["points"] for c in p],
+                    width=stroke["width"],
+                    cap="round",
+                    joint="round",
                 )
 
-            PopMatrix()
-
+        # 🛑 stop redraw khi không vẽ
+        if not self.current_stroke:
+            Clock.unschedule(self._redraw_ev)
+            del self._redraw_ev
 
 class OverlayContainer(MDFloatLayout):
     pass
@@ -467,7 +480,7 @@ class ChatApp(MDApp):
         self.msg_scroll = ScrollView(do_scroll_x=False, size_hint=(1, 1))
         self.msg_list = MDBoxLayout(orientation="vertical", size_hint=(1, None), spacing=dp(10), padding=[0, dp(10), 0, dp(10)])
         self.container = OverlayContainer(size_hint=(1, None))
-        self.draw_canvas = InfiniteDrawBoard(msg_scroll=self.msg_scroll)
+        self.draw_canvas = InfiniteDrawBoard()
         self.msg_list.bind(minimum_height=self.msg_list.setter('height'))
         self.msg_list.bind(height=self.sync_overlay_height)
         self.container.add_widget(self.msg_list)
