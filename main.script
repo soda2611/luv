@@ -994,7 +994,7 @@ class ChatApp(MDApp):
                                     if record["sender"] != self.user_id:
                                         Clock.schedule_once(lambda dt, r=record: self.spawn_emoji(pos=(r["x"] * w, r["y"] * h)))
                                 elif data["topic"] == "realtime:public:draw":
-                                    if record["sender"] != self.user_id:
+                                    if record["sender"] != self.user_id and record["date"]==self.lookup_date:
                                         Clock.schedule_once(lambda dt, r=record: self.draw_remote_stroke(r))
                                 else:
                                     sender = record["sender"]
