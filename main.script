@@ -489,7 +489,7 @@ class ChatApp(MDApp):
         self.container = OverlayContainer(size_hint=(1, None))
         self.draw_canvas = InfiniteDrawBoard()
         self.msg_list.bind(minimum_height=self.msg_list.setter('height'))
-        self.draw_canvas.bind(height=self.sync_overlay_height)
+        self.msg_list.bind(height=self.sync_overlay_height)
         self.container.add_widget(self.msg_list)
         self.container.add_widget(self.draw_canvas)
         self.msg_scroll.add_widget(self.container)
