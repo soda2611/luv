@@ -489,7 +489,7 @@ class ChatApp(MDApp):
         self.container = OverlayContainer(size_hint=(1, None))
         self.draw_canvas = InfiniteDrawBoard()
         self.msg_list.bind(minimum_height=self.msg_list.setter('height'))
-        self.msg_list.bind(height=self.sync_overlay_height)
+        self.draw_canvas.bind(height=self.sync_overlay_height)
         self.container.add_widget(self.msg_list)
         self.container.add_widget(self.draw_canvas)
         self.msg_scroll.add_widget(self.container)
@@ -757,7 +757,7 @@ class ChatApp(MDApp):
                 md_bg_color=boxbg[:-1]+(0.25,),
                 radius=[dp(10), dp(10), dp(10), dp(10)],
                 elevation=0,
-                on_release=lambda x: self.spawn_emoji(pos=Window.mouse_pos)
+                on_release=lambda x: self.send_emoji(Window.mouse_pos)
             )
             msg_card.sender = sender
             msg_card.last_timestamp = timestamp
@@ -853,6 +853,20 @@ class ChatApp(MDApp):
                 anim.bind(on_complete=lambda *x: Window.remove_widget(label))
                 anim.start(label)
     
+    def send_emoji(self, emoji="\U0001F496", pos=(0, 0)):
+        self.spawn_emoji(emoji=emoji, pos=pos)
+
+        url = f"{SUPABASE_URL}/rest/v1/reactions"
+        data = {
+            "sender": self.user_id,
+            "emoji": emoji,
+            "x": float(pos[0]),
+            "y": float(pos[1]),
+            "created_at": time.strftime("%H:%M"),
+            "date": time.strftime("%d/%m/%Y")
+        }
+        requests.post(url, headers=headers, json=data)
+
     def listen_realtime(self):
         async def realtime_loop():
             while True:  # 🔁 vòng reconnect
@@ -882,33 +896,50 @@ class ChatApp(MDApp):
                         }
                         await ws.send(json.dumps(join_msg))
 
+                        await ws.send(json.dumps({
+                            "topic": "realtime:public:reactions",
+                            "event": "phx_join",
+                            "payload": {},
+                            "ref": 2
+                        }))
+
                         while True:
                             msg = await ws.recv()
                             data = json.loads(msg)
 
+                            record = data["payload"]["record"]
                             if data.get("event") == "INSERT":
-                                record = data["payload"]["record"]
-
-                                sender = record["sender"]
-                                content = record["content"]
-                                timestamp = record["created_at"]
-                                date = record["date"]
-
-                                if self.lookup and self.lookup_date != datetime.strftime(datetime.now(), "%d/%m/%Y"):
-                                    self.noti.button.disabled=False
-                                    expand_vertical(self.noti, dp(40))
+                                if data["topic"] == "realtime:public:reactions":
+                                    if record["sender"] != self.user_id:
+                                        Clock.schedule_once(
+                                            lambda dt, r=record:
+                                            self.spawn_emoji(
+                                                emoji=r["emoji"],
+                                                pos=(r["x"], r["y"])
+                                            )
+                                        )
                                 else:
-                                    Clock.schedule_once(
-                                        lambda dt, s=sender, c=content, t=timestamp, d=date:
-                                        self.display_message(s, c, t, d)
-                                    )
-                                    if 'iu' in content.strip().split(): Clock.schedule_once(lambda x: self.spawn_emoji(multi=True))
+                                    sender = record["sender"]
+                                    content = record["content"]
+                                    timestamp = record["created_at"]
+                                    date = record["date"]
 
-                                if sender != self.user_id and (platform!="android" or not self.app_in_foreground):
-                                    notify_message(
-                                        "Tin nhắn mới",
-                                        f"{sender}: {content}"
-                                    )
+                                    if self.lookup and self.lookup_date != datetime.strftime(datetime.now(), "%d/%m/%Y"):
+                                        self.noti.button.disabled=False
+                                        expand_vertical(self.noti, dp(40))
+                                    else:
+                                        Clock.schedule_once(
+                                            lambda dt, s=sender, c=content, t=timestamp, d=date:
+                                            self.display_message(s, c, t, d)
+                                        )
+                                        if 'iu' in content.strip().split(): Clock.schedule_once(lambda x: self.spawn_emoji(multi=True))
+
+                                    if sender != self.user_id and (platform!="android" or not self.app_in_foreground):
+                                        notify_message(
+                                            "Tin nhắn mới",
+                                            f"{sender}: {content}"
+                                        )
+                                
 
                 except Exception as e:
                     print("Realtime socket died:", e)
@@ -968,7 +999,7 @@ class ChatApp(MDApp):
         self.show_update_success()
 
     def on_start(self):
-        global need_update, build
+        global build
 
         url = f"{SUPABASE_URL}/rest/v1/version?select=*&date=eq.{datetime.strftime(datetime.now(), '%d/%m/%Y')}&order=build.asc"
         res = requests.get(url, headers=headers)
