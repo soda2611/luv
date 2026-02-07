@@ -357,7 +357,7 @@ class InfiniteDrawBoard(Widget):
             "width": stroke["width"],
             "color": list(stroke["color"]),
             "created_at": time.strftime("%H:%M"),
-            "date": time.strftime("%d/%m/%Y"),
+            "date": datetime.strftime(MDApp.get_running_app().lookup_date, "%d/%m/%Y") if not isinstance(MDApp.get_running_app().lookup_date, str) else MDApp.get_running_app().lookup_date,
         }
 
         threading.Thread(
