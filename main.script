@@ -672,6 +672,9 @@ class ChatApp(MDApp):
 
     def load_messages(self, instance=None, date_str=datetime.strftime(datetime.now(), '%d/%m/%Y'), data_range=None):
         self.lookup_date=date_str
+        self.draw_canvas.strokes.clear()
+        self.draw_canvas.remote_strokes.clear()
+        self.load_strokes(date_str)
         if not self.noti.button.disabled:
             self.noti.button.disabled=True
             collapse_vertical(self.noti)
@@ -690,6 +693,36 @@ class ChatApp(MDApp):
             elif datetime.strptime(date_str, "%d/%m/%Y") < datetime.now() and self.lookup_date != datetime.strftime(datetime.now(), "%d/%m/%Y"): self.display_message('ngha' if self.user_id=='hmn' else 'hmn', 'Không có tin nhắn nào cho ngày này hết ;-;', '00:00', date_str)
             elif datetime.strptime(date_str, "%d/%m/%Y") > datetime.now() or self.lookup_date == datetime.strftime(datetime.now(), "%d/%m/%Y"): self.display_message('ngha' if self.user_id=='hmn' else 'hmn', 'Mong chờ những lời iu thương của {} qaaa :3'.format('hmn' if self.user_id=='hmn' else 'ngha'), '00:00', date_str)
             Clock.schedule_once(self.scroll_to_bottom)
+
+    def load_strokes(self, date_str):
+        url = (
+            f"{SUPABASE_URL}/rest/v1/draw"
+            f"?select=*&date=eq.{date_str}"
+            f"&order=created_at.asc"
+        )
+
+        res = requests.get(url, headers=headers)
+        if res.status_code != 200:
+            print("LOAD STROKES FAIL:", res.text)
+            return
+
+        rows = res.json()
+        board = self.draw_canvas
+        board.strokes.clear()
+        board.remote_strokes.clear()
+
+        w, h = Window.size
+
+        for row in rows:
+            points = [(x * w, y * h) for x, y in row["points"]]
+
+            board.strokes.append({
+                "points": points,
+                "width": row.get("width", 2),
+                "color": tuple(row.get("color", (0, 0, 0, 1)))
+            })
+
+        board.schedule_redraw()
 
     def scroll_to_bottom(self, *args):        
         if self.msg_scroll.viewport_size[1] > self.msg_scroll.height:
