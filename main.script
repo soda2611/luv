@@ -222,6 +222,11 @@ def collapse_vertical(w):
     anim=Animation(height=0, opacity=0, duration=0.3, transition='out_quart')
     anim.start(w)
 
+def normalize_date(d):
+    if isinstance(d, str):
+        return d
+    return d.strftime("%d/%m/%Y")
+
 Window.minimum_width, Window.minimum_height= 400, 500
 Window.softinput_mode = "below_target"
 
@@ -357,7 +362,7 @@ class InfiniteDrawBoard(Widget):
             "width": stroke["width"],
             "color": list(stroke["color"]),
             "created_at": time.strftime("%H:%M"),
-            "date": datetime.strftime(MDApp.get_running_app().lookup_date, "%d/%m/%Y") if not isinstance(MDApp.get_running_app().lookup_date, str) else MDApp.get_running_app().lookup_date,
+            "date": normalize_date(MDApp.get_running_app().lookup_date)
         }
 
         threading.Thread(
@@ -994,7 +999,7 @@ class ChatApp(MDApp):
                                     if record["sender"] != self.user_id:
                                         Clock.schedule_once(lambda dt, r=record: self.spawn_emoji(pos=(r["x"] * w, r["y"] * h)))
                                 elif data["topic"] == "realtime:public:draw":
-                                    if record["sender"] != self.user_id and record["date"]==self.lookup_date:
+                                    if record["sender"] != self.user_id and normalize_date(record["date"])==normalize_date(self.lookup_date):
                                         Clock.schedule_once(lambda dt, r=record: self.draw_remote_stroke(r))
                                 else:
                                     sender = record["sender"]
