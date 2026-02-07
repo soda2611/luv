@@ -855,11 +855,12 @@ class ChatApp(MDApp):
                 anim.start(label)
     
     def send_emoji(self, pos=(0, 0)):
+        w, h = Window.size
         url = f"{SUPABASE_URL}/rest/v1/reaction"
         data = {
             "sender": self.user_id,
-            "x": float(pos[0]),
-            "y": float(pos[1]),
+            "x": float(pos[0]) / w,
+            "y": float(pos[1]) / h,
             "created_at": time.strftime("%H:%M"),
             "date": time.strftime("%d/%m/%Y")
         }
@@ -905,18 +906,14 @@ class ChatApp(MDApp):
                             msg = await ws.recv()
                             data = json.loads(msg)
 
-                            record = data.get("payload", {}).get("record")
+                            record = data["payload"]["record"]
                             if not record:
                                 continue
                             if data.get("event") == "INSERT":
                                 if data["topic"] == "realtime:public:reaction":
+                                    w, h = Window.size
                                     if record["sender"] != self.user_id:
-                                        Clock.schedule_once(
-                                            lambda dt, r=record:
-                                            self.spawn_emoji(
-                                                pos=(r["x"], r["y"])
-                                            )
-                                        )
+                                        Clock.schedule_once(lambda dt, r=record: self.spawn_emoji(pos=(r["x"] * w, r["y"] * h)))
                                 else:
                                     sender = record["sender"]
                                     content = record["content"]
