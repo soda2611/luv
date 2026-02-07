@@ -271,8 +271,10 @@ def stroke_in_viewport(stroke, vp):
 
 # ---------- Draw Board ----------
 class InfiniteDrawBoard(Widget):
-    def __init__(self, **kwargs):
+    def __init__(self, msg_scroll, **kwargs):
         super().__init__(**kwargs)
+
+        self.msg_scroll = msg_scroll  # 🔑 ScrollView điều khiển cuộn
 
         self.strokes = []
         self.current_stroke = None
@@ -280,20 +282,11 @@ class InfiniteDrawBoard(Widget):
         self.cam_x = 0
         self.cam_y = 0
 
-        self.active_touches = {}   # touch.id -> touch
-        self.dragging = False
-        self.last_touch = None     # cho chuột phải
-        self.last_center = None    # cho 2 ngón
+        self.active_touches = {}
 
-    # ---------- helpers ----------
-
-    def get_touch_center(self):
-        if len(self.active_touches) < 2:
-            return None
-
-        xs = [t.x for t in self.active_touches.values()]
-        ys = [t.y for t in self.active_touches.values()]
-        return (sum(xs) / len(xs), sum(ys) / len(ys))
+        # 🔽 thêm
+        self.scrolling = False
+        self.last_scroll_y = None
 
     # ---------- Touch ----------
 
@@ -301,20 +294,19 @@ class InfiniteDrawBoard(Widget):
         if not self.collide_point(*touch.pos):
             return False
 
-        # 🖱 Chuột phải drag (GIỮ NGUYÊN)
+        # 🖱 chuột phải → mở khóa scroll
         if touch.button == "right":
-            self.dragging = True
-            self.last_touch = touch.pos
+            self.scrolling = True
+            self.last_scroll_y = touch.y
             return True
 
-        # 👆 Touch (cảm ứng)
         touch.grab(self)
         self.active_touches[touch.id] = touch
 
-        # ✌️ 2 ngón → drag
+        # ✌️ 2 ngón → mở khóa scroll
         if len(self.active_touches) == 2:
-            self.dragging = True
-            self.last_center = self.get_touch_center()
+            self.scrolling = True
+            self.last_scroll_y = touch.y
             return True
 
         # 👆 1 ngón → vẽ
@@ -331,29 +323,22 @@ class InfiniteDrawBoard(Widget):
         return True
 
     def on_touch_move(self, touch):
-        # 🖱 Chuột phải drag
-        if self.dragging and touch.button == "right":
-            dx = touch.x - self.last_touch[0]
-            dy = touch.y - self.last_touch[1]
-            self.cam_x -= dx
-            self.cam_y -= dy
-            self.last_touch = touch.pos
+        # 🔽 CUỘN BẰNG SCROLLVIEW
+        if self.scrolling and self.msg_scroll:
+            dy = touch.y - (self.last_scroll_y or touch.y)
+
+            self.msg_scroll.scroll_y += dy / self.msg_scroll.height
+            self.msg_scroll.scroll_y = max(0, min(1, self.msg_scroll.scroll_y))
+
+            # 🎥 mirror cam_y để check viewport
+            content_h = max(self.msg_scroll.viewport_size[1], Window.height)
+            self.cam_y = (1 - self.msg_scroll.scroll_y) * (content_h - Window.height)
+
+            self.last_scroll_y = touch.y
             self.schedule_redraw()
             return True
 
-        # ✌️ Drag bằng 2 ngón
-        if self.dragging and len(self.active_touches) >= 2:
-            center = self.get_touch_center()
-            if center and self.last_center:
-                dx = center[0] - self.last_center[0]
-                dy = center[1] - self.last_center[1]
-                self.cam_x -= dx
-                self.cam_y -= dy
-                self.last_center = center
-                self.schedule_redraw()
-            return True
-
-        # 👆 Vẽ bằng 1 ngón
+        # ✏️ vẽ
         if len(self.active_touches) == 1 and self.current_stroke:
             wx = touch.x + self.cam_x
             wy = touch.y + self.cam_y
@@ -364,29 +349,27 @@ class InfiniteDrawBoard(Widget):
         return True
 
     def on_touch_up(self, touch):
-        # 🖱 Chuột phải
+        # 🖱 chuột phải thả → khóa scroll
         if touch.button == "right":
-            self.dragging = False
-            self.last_touch = None
+            self.scrolling = False
+            self.last_scroll_y = None
             return True
 
-        # 👆 Touch
         if touch.grab_current is self:
             touch.ungrab(self)
             self.active_touches.pop(touch.id, None)
 
-        # Kết thúc drag 2 ngón
+        # ✌️ hết 2 ngón → khóa scroll
         if len(self.active_touches) < 2:
-            self.dragging = False
-            self.last_center = None
+            self.scrolling = False
+            self.last_scroll_y = None
 
-        # Kết thúc stroke
+        # kết thúc stroke
         if len(self.active_touches) == 0 and self.current_stroke:
             stroke = self.current_stroke
             self.strokes.append(stroke)
             self.current_stroke = None
             self.schedule_redraw()
-
             self.send_stroke(stroke)
 
         return True
@@ -514,7 +497,7 @@ class ChatApp(MDApp):
         self.msg_scroll = ScrollView(do_scroll_x=False, size_hint=(1, 1))
         self.msg_list = MDBoxLayout(orientation="vertical", size_hint=(1, None), spacing=dp(10), padding=[0, dp(10), 0, dp(10)])
         self.container = OverlayContainer(size_hint=(1, None))
-        self.draw_canvas = InfiniteDrawBoard()
+        self.draw_canvas = InfiniteDrawBoard(msg_scroll=self.msg_scroll)
         self.msg_list.bind(minimum_height=self.msg_list.setter('height'))
         self.msg_list.bind(height=self.sync_overlay_height)
         self.container.add_widget(self.msg_list)
