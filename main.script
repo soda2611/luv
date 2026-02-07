@@ -61,6 +61,7 @@ from kivymd.uix.menu import MDDropdownMenu
 from kivymd.uix.pickers import MDDatePicker
 from kivymd.uix.scrollview import ScrollView
 from kivymd.uix.card import MDCard
+from kivymd.uix.behaviors import TouchBehavior
 from kivy.animation import Animation
 from kivy.clock import Clock
 from kivy.core.window import Window
@@ -274,7 +275,7 @@ class InfiniteDrawBoard(Widget):
     def __init__(self, msg_scroll, **kwargs):
         super().__init__(**kwargs)
 
-        self.msg_scroll = msg_scroll  # 🔑 ScrollView điều khiển cuộn
+        self.msg_scroll = msg_scroll
 
         self.strokes = []
         self.current_stroke = None
@@ -284,32 +285,18 @@ class InfiniteDrawBoard(Widget):
 
         self.active_touches = {}
 
-        # 🔽 thêm
-        self.scrolling = False
-        self.last_scroll_y = None
-
     # ---------- Touch ----------
 
     def on_touch_down(self, touch):
         if not self.collide_point(*touch.pos):
             return False
-
-        # 🖱 chuột phải → mở khóa scroll
-        if touch.button == "right":
-            self.scrolling = True
-            self.last_scroll_y = touch.y
-            return True
-
+        
+        if not draw_mode:
+            return False
+        
         touch.grab(self)
-        self.active_touches[touch.id] = touch
+        self.active_touches[touch.uid] = touch
 
-        # ✌️ 2 ngón → mở khóa scroll
-        if len(self.active_touches) == 2:
-            self.scrolling = True
-            self.last_scroll_y = touch.y
-            return True
-
-        # 👆 1 ngón → vẽ
         if len(self.active_touches) == 1:
             wx = touch.x + self.cam_x
             wy = touch.y + self.cam_y
@@ -323,22 +310,9 @@ class InfiniteDrawBoard(Widget):
         return True
 
     def on_touch_move(self, touch):
-        # 🔽 CUỘN BẰNG SCROLLVIEW
-        if self.scrolling and self.msg_scroll:
-            dy = touch.y - (self.last_scroll_y or touch.y)
+        if not draw_mode:
+          return False
 
-            self.msg_scroll.scroll_y += dy / self.msg_scroll.height
-            self.msg_scroll.scroll_y = max(0, min(1, self.msg_scroll.scroll_y))
-
-            # 🎥 mirror cam_y để check viewport
-            content_h = max(self.msg_scroll.viewport_size[1], Window.height)
-            self.cam_y = (1 - self.msg_scroll.scroll_y) * (content_h - Window.height)
-
-            self.last_scroll_y = touch.y
-            self.schedule_redraw()
-            return True
-
-        # ✏️ vẽ
         if len(self.active_touches) == 1 and self.current_stroke:
             wx = touch.x + self.cam_x
             wy = touch.y + self.cam_y
@@ -349,28 +323,24 @@ class InfiniteDrawBoard(Widget):
         return True
 
     def on_touch_up(self, touch):
-        # 🖱 chuột phải thả → khóa scroll
-        if touch.button == "right":
-            self.scrolling = False
-            self.last_scroll_y = None
-            return True
+        if not draw_mode:
+            return False
 
-        if touch.grab_current is self:
-            touch.ungrab(self)
-            self.active_touches.pop(touch.id, None)
+        if touch.grab_current is not self:
+            return False
 
-        # ✌️ hết 2 ngón → khóa scroll
-        if len(self.active_touches) < 2:
-            self.scrolling = False
-            self.last_scroll_y = None
+        touch.ungrab(self)
+        self.active_touches.pop(touch.uid, None)
 
-        # kết thúc stroke
-        if len(self.active_touches) == 0 and self.current_stroke:
+        if self.current_stroke:
             stroke = self.current_stroke
             self.strokes.append(stroke)
+
+            # 🔥 GỬI REALTIME
+            self.send_stroke(stroke)
+
             self.current_stroke = None
             self.schedule_redraw()
-            self.send_stroke(stroke)
 
         return True
 
@@ -402,8 +372,8 @@ class InfiniteDrawBoard(Widget):
     # ---------- Render ----------
 
     def schedule_redraw(self):
-        Clock.unschedule(self.redraw)
-        Clock.schedule_once(self.redraw, 0)
+        if not hasattr(self, "_redraw_ev"):
+            self._redraw_ev = Clock.schedule_interval(self.redraw, 1/60)
 
     def flatten_points(self, points):
         out = []
@@ -501,6 +471,7 @@ class ChatApp(MDApp):
         self.msg_list.bind(minimum_height=self.msg_list.setter('height'))
         self.msg_list.bind(height=self.sync_overlay_height)
         self.container.add_widget(self.msg_list)
+        self.container.add_widget(self.draw_canvas)
         self.msg_scroll.add_widget(self.container)
         
         # Input card with rounded design
@@ -622,7 +593,6 @@ class ChatApp(MDApp):
         global draw_mode
         self.menu.dismiss()
         self.msg_scroll.do_scroll, draw_mode=[True, False] if draw_mode else [False, True]
-        self.container.add_widget(self.draw_canvas) if draw_mode else self.container.remove_widget(self.draw_canvas)
 
     def show_uid_dialog(self, *args):
         try: self.menu.dismiss()
@@ -881,17 +851,18 @@ class ChatApp(MDApp):
         threading.Thread(target=send).start()
 
     def draw_remote_stroke(self, record):
+        if "points" not in record:
+            return
+
         board = self.draw_canvas
         w, h = Window.size
 
-        points = [
-            (x * w, y * h) for x, y in record["points"]
-        ]
+        points = [(x * w, y * h) for x, y in record["points"]]
 
         board.strokes.append({
             "points": points,
-            "width": record["width"],
-            "color": tuple(record["color"])
+            "width": record.get("width", 2),
+            "color": tuple(record.get("color", (0, 0, 0, 1)))
         })
 
         board.schedule_redraw()
@@ -951,7 +922,7 @@ class ChatApp(MDApp):
                                     w, h = Window.size
                                     if record["sender"] != self.user_id:
                                         Clock.schedule_once(lambda dt, r=record: self.spawn_emoji(pos=(r["x"] * w, r["y"] * h)))
-                                elif data["topic"] == "realtime:public:draw_strokes":
+                                elif data["topic"] == "realtime:public:draw":
                                     if record["sender"] != self.user_id:
                                         Clock.schedule_once(lambda dt, r=record: self.draw_remote_stroke(r))
                                 else:
