@@ -867,7 +867,7 @@ class ChatApp(MDApp):
             }
             requests.post(url, headers=headers, json=data)
 
-        threading.Thread(target=send).start
+        threading.Thread(target=send).start()
 
     def listen_realtime(self):
         async def realtime_loop():
