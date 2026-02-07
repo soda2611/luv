@@ -855,16 +855,19 @@ class ChatApp(MDApp):
     def send_emoji(self, pos=(0, 0)):
         self.spawn_emoji(pos=pos)
 
-        w, h = Window.size
-        url = f"{SUPABASE_URL}/rest/v1/reaction"
-        data = {
-            "sender": self.user_id,
-            "x": float(pos[0]) / w,
-            "y": float(pos[1]) / h,
-            "created_at": time.strftime("%H:%M"),
-            "date": time.strftime("%d/%m/%Y")
-        }
-        requests.post(url, headers=headers, json=data)
+        def send():
+            w, h = Window.size
+            url = f"{SUPABASE_URL}/rest/v1/reaction"
+            data = {
+                "sender": self.user_id,
+                "x": float(pos[0]) / w,
+                "y": float(pos[1]) / h,
+                "created_at": time.strftime("%H:%M"),
+                "date": time.strftime("%d/%m/%Y")
+            }
+            requests.post(url, headers=headers, json=data)
+
+        threading.Thread(target=send).start
 
     def listen_realtime(self):
         async def realtime_loop():
