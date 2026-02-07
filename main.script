@@ -442,6 +442,8 @@ class ChatApp(MDApp):
         self.last_date = None
         self.lookup = False
         self.lookup_date = datetime.strftime(datetime.now(), "%d/%m/%Y")
+        self._last_msg_height = 0
+
         if os.path.exists("uid.txt"):
             with open("uid.txt", "r") as f:
                 self.user_id = f.read().strip()
@@ -481,6 +483,8 @@ class ChatApp(MDApp):
         self.msg_list = MDBoxLayout(orientation="vertical", size_hint=(1, None), spacing=dp(10), padding=[0, dp(10), 0, dp(10)])
         self.container = OverlayContainer(size_hint=(1, None))
         self.draw_canvas = InfiniteDrawBoard()
+        self.draw_canvas.size_hint = (1, None)
+        self.draw_canvas.height = self.container.height
         self.msg_list.bind(minimum_height=self.msg_list.setter('height'))
         self.msg_list.bind(height=self.sync_overlay_height)
         self.container.add_widget(self.msg_list)
@@ -557,6 +561,8 @@ class ChatApp(MDApp):
     
     def sync_overlay_height(self, *args):
         self.container.height = self.msg_list.height
+        self.draw_canvas.height = self.container.height
+        self.draw_canvas.y = self.container.y
 
     def date_picker_open(self):
         self.menu.dismiss()
@@ -674,7 +680,6 @@ class ChatApp(MDApp):
         self.lookup_date=date_str
         self.draw_canvas.strokes.clear()
         self.draw_canvas.remote_strokes.clear()
-        self.load_strokes(date_str)
         if not self.noti.button.disabled:
             self.noti.button.disabled=True
             collapse_vertical(self.noti)
@@ -693,6 +698,9 @@ class ChatApp(MDApp):
             elif datetime.strptime(date_str, "%d/%m/%Y") < datetime.now() and self.lookup_date != datetime.strftime(datetime.now(), "%d/%m/%Y"): self.display_message('ngha' if self.user_id=='hmn' else 'hmn', 'Không có tin nhắn nào cho ngày này hết ;-;', '00:00', date_str)
             elif datetime.strptime(date_str, "%d/%m/%Y") > datetime.now() or self.lookup_date == datetime.strftime(datetime.now(), "%d/%m/%Y"): self.display_message('ngha' if self.user_id=='hmn' else 'hmn', 'Mong chờ những lời iu thương của {} qaaa :3'.format('hmn' if self.user_id=='hmn' else 'ngha'), '00:00', date_str)
             Clock.schedule_once(self.scroll_to_bottom)
+        
+        self._last_msg_height = self.msg_list.height
+        Clock.schedule_once(lambda dt: self.load_strokes(date_str), 0)
 
     def load_strokes(self, date_str):
         url = (
@@ -822,6 +830,23 @@ class ChatApp(MDApp):
             msg_card.bind(minimum_height=msg_card.setter('height'))
             
             self.msg_list.add_widget(msg_card)
+        
+        Clock.schedule_once(self.sync_strokes_after_msg, 0)
+
+    def sync_strokes_after_msg(self, *args):
+        new_h = self.msg_list.height
+        delta = new_h - self._last_msg_height
+
+        if delta > 0:
+            board = self.draw_canvas
+            for stroke in board.strokes:
+                stroke["points"] = [
+                    (x, y + delta) for x, y in stroke["points"]
+                ]
+
+            board.schedule_redraw()
+
+        self._last_msg_height = new_h
 
     def spawn_emoji(self, emoji="\U0001F496", pos=(0, 0), multi=False):
         if not multi:
