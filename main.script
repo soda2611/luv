@@ -673,7 +673,7 @@ class ChatApp(MDApp):
             res = requests.post(url, headers=headers, json=data)
             if res.status_code == 201:
                 self.text_input.input.text = ""
-                if 'iu' in msg.strip().split(): Clock.schedule_once(lambda x: self.spawn_emoji(multi=True))
+                if 'iu' in msg.lower().translate(str.maketrans('', '', '.,?!')).split(): Clock.schedule_once(lambda x: self.spawn_emoji(multi=True))
             else:
                 print("Error:", res.text)
 
@@ -856,7 +856,7 @@ class ChatApp(MDApp):
     def send_emoji(self, emoji="\U0001F496", pos=(0, 0)):
         self.spawn_emoji(emoji=emoji, pos=pos)
 
-        url = f"{SUPABASE_URL}/rest/v1/reactions"
+        url = f"{SUPABASE_URL}/rest/v1/reaction"
         data = {
             "sender": self.user_id,
             "emoji": emoji,
@@ -897,7 +897,7 @@ class ChatApp(MDApp):
                         await ws.send(json.dumps(join_msg))
 
                         await ws.send(json.dumps({
-                            "topic": "realtime:public:reactions",
+                            "topic": "realtime:public:reaction",
                             "event": "phx_join",
                             "payload": {},
                             "ref": 2
@@ -907,9 +907,11 @@ class ChatApp(MDApp):
                             msg = await ws.recv()
                             data = json.loads(msg)
 
-                            record = data["payload"]["record"]
+                            record = data.get("payload", {}).get("record")
+                            if not record:
+                                continue
                             if data.get("event") == "INSERT":
-                                if data["topic"] == "realtime:public:reactions":
+                                if data["topic"] == "realtime:public:reaction":
                                     if record["sender"] != self.user_id:
                                         Clock.schedule_once(
                                             lambda dt, r=record:
@@ -932,7 +934,7 @@ class ChatApp(MDApp):
                                             lambda dt, s=sender, c=content, t=timestamp, d=date:
                                             self.display_message(s, c, t, d)
                                         )
-                                        if 'iu' in content.strip().split(): Clock.schedule_once(lambda x: self.spawn_emoji(multi=True))
+                                        if 'iu' in content.lower()().translate(str.maketrans('', '', '.,?!')).split(): Clock.schedule_once(lambda x: self.spawn_emoji(multi=True))
 
                                     if sender != self.user_id and (platform!="android" or not self.app_in_foreground):
                                         notify_message(
