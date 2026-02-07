@@ -269,7 +269,6 @@ def stroke_in_viewport(stroke, vp):
     vx1, vy1, vx2, vy2 = vp
     return not (max_x < vx1 or min_x > vx2 or max_y < vy1 or min_y > vy2)
 
-
 # ---------- Draw Board ----------
 class InfiniteDrawBoard(Widget):
     def __init__(self, **kwargs):
@@ -383,11 +382,39 @@ class InfiniteDrawBoard(Widget):
 
         # Kết thúc stroke
         if len(self.active_touches) == 0 and self.current_stroke:
-            self.strokes.append(self.current_stroke)
+            stroke = self.current_stroke
+            self.strokes.append(stroke)
             self.current_stroke = None
             self.schedule_redraw()
 
+            self.send_stroke(stroke)
+
         return True
+
+    def send_stroke(self, stroke):
+        w, h = Window.size
+
+        norm_points = [
+            (x / w, y / h) for x, y in stroke["points"]
+        ]
+
+        data = {
+            "sender": MDApp.get_running_app().user_id,
+            "points": norm_points,
+            "width": stroke["width"],
+            "color": stroke["color"],
+            "created_at": time.strftime("%H:%M"),
+            "date": time.strftime("%d/%m/%Y")
+        }
+
+        threading.Thread(
+            target=lambda: requests.post(
+                f"{SUPABASE_URL}/rest/v1/draw",
+                headers=headers,
+                json=data
+            ),
+            daemon=True
+        ).start()
 
     # ---------- Render ----------
 
@@ -610,8 +637,9 @@ class ChatApp(MDApp):
 
     def draw_mode(self, *args):
         global draw_mode
-        self.msg_scroll.do_scroll, draw_mode=[True, False] if draw_mode else [False, True]
         self.menu.dismiss()
+        self.msg_scroll.do_scroll, draw_mode=[True, False] if draw_mode else [False, True]
+        self.container.add_widget(self.draw_canvas) if draw_mode else self.container.remove_widget(self.draw_canvas)
 
     def show_uid_dialog(self, *args):
         try: self.menu.dismiss()
@@ -869,6 +897,22 @@ class ChatApp(MDApp):
 
         threading.Thread(target=send).start()
 
+    def draw_remote_stroke(self, record):
+        board = self.draw_canvas
+        w, h = Window.size
+
+        points = [
+            (x * w, y * h) for x, y in record["points"]
+        ]
+
+        board.strokes.append({
+            "points": points,
+            "width": record["width"],
+            "color": tuple(record["color"])
+        })
+
+        board.schedule_redraw()
+
     def listen_realtime(self):
         async def realtime_loop():
             while True:  # 🔁 vòng reconnect
@@ -905,6 +949,13 @@ class ChatApp(MDApp):
                             "ref": 2
                         }))
 
+                        await ws.send(json.dumps({
+                            "topic": "realtime:public:draw_strokes",
+                            "event": "phx_join",
+                            "payload": {},
+                            "ref": 3
+                        }))
+
                         while True:
                             msg = await ws.recv()
                             data = json.loads(msg)
@@ -917,6 +968,9 @@ class ChatApp(MDApp):
                                     w, h = Window.size
                                     if record["sender"] != self.user_id:
                                         Clock.schedule_once(lambda dt, r=record: self.spawn_emoji(pos=(r["x"] * w, r["y"] * h)))
+                                elif data["topic"] == "realtime:public:draw_strokes":
+                                    if record["sender"] != self.user_id:
+                                        Clock.schedule_once(lambda dt, r=record: self.draw_remote_stroke(r))
                                 else:
                                     sender = record["sender"]
                                     content = record["content"]
