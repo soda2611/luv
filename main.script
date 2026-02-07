@@ -906,7 +906,7 @@ class ChatApp(MDApp):
                             msg = await ws.recv()
                             data = json.loads(msg)
 
-                            record = data["payload"]["record"]
+                            record = data.get("payload", {}).get("record", {})
                             if not record:
                                 continue
                             if data.get("event") == "INSERT":
@@ -928,7 +928,7 @@ class ChatApp(MDApp):
                                             lambda dt, s=sender, c=content, t=timestamp, d=date:
                                             self.display_message(s, c, t, d)
                                         )
-                                        if 'iu' in content.lower()().translate(str.maketrans('', '', '.,?!')).split(): Clock.schedule_once(lambda x: self.spawn_emoji(multi=True))
+                                        if 'iu' in content.lower().translate(str.maketrans('', '', '.,?!')).split(): Clock.schedule_once(lambda x: self.spawn_emoji(multi=True))
 
                                     if sender != self.user_id and (platform!="android" or not self.app_in_foreground):
                                         notify_message(
