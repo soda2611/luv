@@ -491,7 +491,6 @@ class ChatApp(MDApp):
         self.msg_list.bind(minimum_height=self.msg_list.setter('height'))
         self.msg_list.bind(height=self.sync_overlay_height)
         self.container.add_widget(self.msg_list)
-        self.container.add_widget(self.draw_canvas)
         self.msg_scroll.add_widget(self.container)
         
         # Input card with rounded design
@@ -757,7 +756,7 @@ class ChatApp(MDApp):
                 md_bg_color=boxbg[:-1]+(0.25,),
                 radius=[dp(10), dp(10), dp(10), dp(10)],
                 elevation=0,
-                on_release=lambda x: self.send_emoji(Window.mouse_pos)
+                on_release=lambda x: self.spawn_emoji(pos=Window.mouse_pos)
             )
             msg_card.sender = sender
             msg_card.last_timestamp = timestamp
@@ -816,6 +815,8 @@ class ChatApp(MDApp):
 
             anim.bind(on_complete=lambda *x: Window.remove_widget(label))
             anim.start(label)
+
+            threading.Thread(target=self.send_emoji, args=(pos,), daemon=True).start()
         else:
             count = random.randint(10, 15)
 
@@ -853,13 +854,10 @@ class ChatApp(MDApp):
                 anim.bind(on_complete=lambda *x: Window.remove_widget(label))
                 anim.start(label)
     
-    def send_emoji(self, emoji="\U0001F496", pos=(0, 0)):
-        self.spawn_emoji(emoji=emoji, pos=pos)
-
+    def send_emoji(self, pos=(0, 0)):
         url = f"{SUPABASE_URL}/rest/v1/reaction"
         data = {
             "sender": self.user_id,
-            "emoji": emoji,
             "x": float(pos[0]),
             "y": float(pos[1]),
             "created_at": time.strftime("%H:%M"),
