@@ -950,7 +950,7 @@ class ChatApp(MDApp):
                         }))
 
                         await ws.send(json.dumps({
-                            "topic": "realtime:public:draw_strokes",
+                            "topic": "realtime:public:draw",
                             "event": "phx_join",
                             "payload": {},
                             "ref": 3
