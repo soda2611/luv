@@ -722,43 +722,6 @@ class ChatApp(MDApp):
                 "on_release": self.draw_mode
             },
             {
-                "text": "Chọn Bút (Pen)",
-                "text_color": primarycolor,
-                "trailing_icon": "pencil",
-                "theme_trailing_icon_color": "Custom",
-                "trailing_icon_color": primarycolor,
-                "on_release": self.set_tool_pen,
-                "disabled": False if draw_mode else True
-            },
-            {
-                "text": "Chọn Tẩy (Eraser)",
-                "text_color": primarycolor,
-                "trailing_icon": "eraser",
-                "theme_trailing_icon_color": "Custom",
-                "trailing_icon_color": primarycolor,
-                "on_release": self.set_tool_eraser,
-                "disabled": False if draw_mode else True
-            },
-            {
-                "text": "Tẩy to hơn (+5px)",
-                "text_color": primarycolor,
-                "trailing_icon": "plus-circle",
-                "theme_trailing_icon_color": "Custom",
-                "trailing_icon_color": primarycolor,
-                "on_release": self.eraser_size_up,
-                "disabled": False if draw_mode else True
-            },
-            {
-                "text": "Tẩy nhỏ hơn (-5px)",
-                "text_color": primarycolor,
-                "trailing_icon": "minus-circle",
-                "theme_trailing_icon_color": "Custom",
-                "trailing_icon_color": primarycolor,
-                "on_release": self.eraser_size_down,
-                "disabled": False if draw_mode else True
-            },
-
-            {
                 "text": "Check tin nhắn cũ",
                 "text_color": primarycolor,
                 "trailing_icon": "history",
@@ -776,6 +739,17 @@ class ChatApp(MDApp):
                 "on_release": self.show_uid_dialog
             }
         ]
+
+        if draw_mode: menu_items=menu_items[:1]+[
+            {
+                "text": "Chọn Bút" if not self.draw_canvas.tool=="pen" else"Chọn Tẩy",
+                "text_color": primarycolor,
+                "trailing_icon": "pencil" if not self.draw_canvas.tool=="pen" else "eraser",
+                "theme_trailing_icon_color": "Custom",
+                "trailing_icon_color": primarycolor,
+                "on_release": self.set_tool_pen if not self.draw_canvas.tool=="pen" else self.set_tool_eraser,
+                "disabled": False
+            }]+menu_items[1:]
         
         self.menu=MDDropdownMenu(
             caller=self.uid_button,
