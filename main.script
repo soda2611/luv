@@ -54,7 +54,7 @@ import json
 from datetime import datetime
 from kivymd.app import MDApp
 from kivymd.uix.boxlayout import MDBoxLayout
-from kivymd.uix.floatlayout import MDFloatLayout
+from kivymd.uix.anchorlayout import MDAnchorLayout
 from kivymd.uix.textfield import MDTextField
 from kivymd.uix.label import MDLabel
 from kivymd.uix.button import MDIconButton, MDFillRoundFlatButton
@@ -485,7 +485,7 @@ class InfiniteDrawBoard(Widget):
         self.strokes.clear()
         self.current_stroke = None
 
-class OverlayContainer(MDFloatLayout):
+class OverlayContainer(MDAnchorLayout):
     pass
 
 # --- ChatApp ---
@@ -545,7 +545,7 @@ class ChatApp(MDApp):
         # Message scroll area with better styling
         self.msg_scroll = ScrollView(do_scroll_x=False, size_hint=(1, 1))
         self.msg_list = MDBoxLayout(orientation="vertical", size_hint=(1, None), spacing=dp(10), padding=[0, dp(10), 0, dp(10)])
-        self.container = OverlayContainer(size_hint=(1, None))
+        self.container = OverlayContainer(size_hint=(1, None), anchor_y='top')
         self.draw_canvas = InfiniteDrawBoard()
         self.draw_canvas.size_hint = (1, None)
         self.draw_canvas.height = self.container.height
