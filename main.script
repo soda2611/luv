@@ -317,9 +317,7 @@ class InfiniteDrawBoard(Widget):
                     "radius": self.eraser_radius,
                 }
                 # xóa ngay tại điểm chạm đầu
-                self.erase_at(wx, wy, self.eraser_radius)
-                # phát realtime eraser (partial)
-                self.send_draw_event(self.current_stroke, partial=True)
+                self.erase_at(wx, wy, self.eraser_radius)   
             self.schedule_redraw()
             return True
         return False
@@ -340,7 +338,6 @@ class InfiniteDrawBoard(Widget):
             else:
                 # tẩy: áp dụng và phát realtime
                 self.erase_at(wx, wy, self.current_stroke.get("radius", self.eraser_radius))
-                self.send_draw_event(self.current_stroke, partial=True)
             self.schedule_redraw()
             return True
         return False
@@ -348,13 +345,15 @@ class InfiniteDrawBoard(Widget):
     def on_touch_up(self, touch):
         if touch.uid in self.active_touches:
             self.active_touches.pop(touch.uid)
+        
         if self.current_stroke:
-            # kết thúc stroke/eraser (partial=False)
-            self.send_draw_event(self.current_stroke, partial=False)
+            if self.current_stroke.get("tool") == "pen":
+                self.send_draw_event(self.current_stroke, partial=False)
+            # Nếu là “eraser” -> KHÔNG gửi lên DB
             self.current_stroke = None
         return True
 
-    # SEND REALTIME (pen & eraser, có partial)
+    # SEND REALTIME (pen & eraser, có partial) 
     def send_draw_event(self, stroke, partial):
         if not stroke.get("points"):
             return
@@ -363,20 +362,22 @@ class InfiniteDrawBoard(Widget):
             p1, p2 = stroke["points"][-2:]
         else:
             p1 = p2 = stroke["points"][-1]
+
         data = {
             "sender": MDApp.get_running_app().user_id,
-            "tool": stroke.get("tool", "pen"),
+            # KHÔNG gửi "tool"
             "points": [
                 [p1[0] / w, p1[1] / h],
                 [p2[0] / w, p2[1] / h],
             ],
             "width": stroke.get("width", 0),
-            "radius": stroke.get("radius", 0),
+            # KHÔNG gửi "radius"
             "color": list(stroke.get("color", (0, 0, 0, 1))),
-            "partial": bool(partial),
+            "partial": bool(partial),                 # nếu bạn còn dùng để ghép nét
             "created_at": time.strftime("%H:%M"),
             "date": normalize_date(MDApp.get_running_app().lookup_date),
         }
+
         threading.Thread(
             target=lambda: requests.post(
                 f"{SUPABASE_URL}/rest/v1/draw", headers=headers, json=data
@@ -386,48 +387,60 @@ class InfiniteDrawBoard(Widget):
 
     # ERASE core
     def erase_at(self, x, y, radius):
-        r2 = radius * radius
-        for stroke in list(self.strokes):
-            # chỉ xóa nét bút
-            new_pts = []
-            for px, py in stroke["points"]:
-                if (px - x) ** 2 + (py - y) ** 2 > r2:
-                    new_pts.append((px, py))
-            if len(new_pts) < 2:
-                self.strokes.remove(stroke)
-            else:
-                stroke["points"] = new_pts
+        """
+        Xóa các segment (đoạn [[x1,y1],[x2,y2]]) có một đầu mút nằm trong vòng tẩy.
+        Không đổi schema DB. Gỡ LOCAL ngay + DELETE qua REST filters (JSON-path + dung sai).
+        """
 
-    # RECEIVE REMOTE (pen & eraser)
-    def draw_remote_stroke(self, record):
-        sender = record.get("sender")
-        if not sender or sender == MDApp.get_running_app().user_id:
-            return
         w, h = Window.size
-        points = [(x * w, y * h) for x, y in record.get("points", [])]
-        tool = record.get("tool", "pen")
-        if tool == "pen":
-            if record.get("partial", True):
-                stroke = self.remote_strokes.get(sender)
-                if not stroke:
-                    stroke = {
-                        "tool": "pen",
-                        "points": [],
-                        "width": record.get("width", 2),
-                        "color": tuple(record.get("color", (0, 0, 0, 1))),
-                    }
-                    self.remote_strokes[sender] = stroke
-                    self.strokes.append(stroke)
-                stroke["points"].extend(points)
-            else:
-                # kết thúc stroke
-                self.remote_strokes.pop(sender, None)
-        else:  # eraser
-            radius = record.get("radius", 20)
-            for x, y in points:
-                self.erase_at(x, y, radius)
-        self.schedule_redraw()
+        r2 = radius * radius
 
+        # 1) Gỡ LOCAL: xóa cả stroke nào có đầu mút lọt vòng tròn (đơn giản, nhanh)
+        removed = False
+        for st in list(self.strokes):
+            pts = st.get("points", [])
+            if any((px - x)**2 + (py - y)**2 <= r2 for px, py in pts):
+                self.strokes.remove(st)
+                removed = True
+        if removed:
+            self.schedule_redraw()
+
+        # 2) DELETE trên DB: dùng JSON-path + khoảng dung sai (tránh eq nguyên JSON)
+        # chuẩn hoá tọa độ (giống lúc INSERT)
+        ex = x / w
+        ey = y / h
+
+        # dung sai: quy đổi radius (pixel) -> normalized
+        eps = 1.5 * (radius / max(w, h))
+        x_min = ex - eps; x_max = ex + eps
+        y_min = ey - eps; y_max = ey + eps
+
+        # PostgREST or= (p1 trong bbox) OR (p2 trong bbox)
+        def fnum(v): return f"{v:.6f}"
+        or_param = (
+            f"and(points->0->>0.gte.{fnum(x_min)},points->0->>0.lte.{fnum(x_max)},"
+            f"points->0->>1.gte.{fnum(y_min)},points->0->>1.lte.{fnum(y_max)}),"
+            f"and(points->1->>0.gte.{fnum(x_min)},points->1->>0.lte.{fnum(x_max)},"
+            f"points->1->>1.gte.{fnum(y_min)},points->1->>1.lte.{fnum(y_max)})"
+        )
+
+        date_str = normalize_date(MDApp.get_running_app().lookup_date)
+        base = f"{SUPABASE_URL}/rest/v1/draw"
+        params = {  # để requests tự encode
+            "date": f"eq.{date_str}",
+            "or": f"({or_param})",
+        }
+
+        def _delete():
+            try:
+                res = requests.delete(base, headers=headers, params=params)
+                if res.status_code not in (200, 204):
+                    print("Erase DELETE failed:", res.status_code, res.text)
+            except Exception as e:
+                print("Erase DELETE error:", e)
+
+        threading.Thread(target=_delete, daemon=True).start()
+    
     def redraw(self, *args):
          self.canvas.clear()
          with self.canvas:
@@ -822,7 +835,6 @@ class ChatApp(MDApp):
             f"?select=*&date=eq.{date_str}"
             f"&order=created_at.asc"
         )
-
         res = requests.get(url, headers=headers)
         if res.status_code != 200:
             print("LOAD STROKES FAIL:", res.text)
@@ -832,36 +844,28 @@ class ChatApp(MDApp):
         board = self.draw_canvas
         board.strokes.clear()
         board.remote_strokes.clear()
-
         w, h = Window.size
-        # Gộp stroke theo sender khi pen (partial=True), xóa khi partial=False
+
+        # Nếu muốn ghép nét mượt theo sender/partial (giữ nguyên cơ chế cũ)
         last_pen_by_sender = {}
         for row in rows:
-            tool = row.get("tool", "pen")
             pts = [(x * w, y * h) for x, y in row.get("points", [])]
             sender = row.get("sender")
 
-            if tool == "pen":
-                stroke = last_pen_by_sender.get(sender)
-                if not stroke:
-                    stroke = {
-                        "tool": "pen",
-                        "points": [],
-                        "width": row.get("width", 2),
-                        "color": tuple(row.get("color", (0, 0, 0, 1))),
-                    }
-                    last_pen_by_sender[sender] = stroke
-                    board.strokes.append(stroke)
-                stroke["points"].extend(pts)
-                if not row.get("partial", True):
-                    last_pen_by_sender.pop(sender, None)
-            else:  # eraser
-                radius = row.get("radius", 20)
-                for x, y in pts:
-                    board.erase_at(x, y, radius)
+            stroke = last_pen_by_sender.get(sender)
+            if not stroke:
+                stroke = {
+                    "points": [],
+                    "width": row.get("width", 2),
+                    "color": tuple(row.get("color", (0, 0, 0, 1))),
+                }
+                last_pen_by_sender[sender] = stroke
+                board.strokes.append(stroke)
+            stroke["points"].extend(pts)
+            if not row.get("partial", True):
+                last_pen_by_sender.pop(sender, None)
+
         board.schedule_redraw()
-
-
     def load_far(self, *args):
         url = f"{SUPABASE_URL}/rest/v1/far?select=*&order=start.asc"
         res = requests.get(url, headers=headers)
@@ -1049,7 +1053,16 @@ class ChatApp(MDApp):
     def draw_remote_stroke(self, record):
         if "points" not in record:
             return
-        self.draw_canvas.draw_remote_stroke(record)
+        board = self.draw_canvas
+        w, h = Window.size
+        points = [(x * w, y * h) for x, y in record["points"]]
+        stroke = {
+            "points": points,
+            "width": record.get("width", 2),
+            "color": tuple(record.get("color", (0, 0, 0, 1))),
+        }
+        board.strokes.append(stroke)
+        board.schedule_redraw()
 
     def listen_realtime(self):
         async def realtime_loop():
@@ -1109,15 +1122,39 @@ class ChatApp(MDApp):
                             if not record:
                                 record = data.get("payload", {}).get("old_record", {})
                                 if data.get("event") == "DELETE":
-                                    msg_id = record.get("id")
-                                    if msg_id and msg_id in msg_id_list:
-                                        widget = msg_id_list[msg_id]
-                                        if len(widget.parent.children)-1==1: Clock.schedule_once(lambda dt, w=widget: self.msg_list.remove_widget(widget.parent))
-                                        else: Clock.schedule_once(lambda dt, w=widget: widget.parent.remove_widget(widget))
-                                        if len(self.msg_list.children)-1==1:
-                                            Clock.schedule_once(
-                                                lambda dt, w=widget: self.display_message('ngha' if self.user_id=='hmn' else 'hmn', 'Mong chờ những lời iu thương của {} qaaa :3'.format('hmn' if self.user_id=='hmn' else 'ngha'), '00:00', self.lookup_date, msg_id='0000')
-                                            )
+                                    if data.get("topic") == "realtime:public:draw":
+                                        try:
+                                            pts = record.get("points") or []
+                                            if len(pts) == 2:
+                                                w, h = Window.size
+                                                p1 = (pts[0][0] * w, pts[0][1] * h)
+                                                p2 = (pts[1][0] * w, pts[1][1] * h)
+
+                                                board = self.draw_canvas
+                                                def near(a, b, eps=3):
+                                                    return abs(a[0]-b[0]) <= eps and abs(a[1]-b[1]) <= eps
+
+                                                # Tìm stroke chứa đoạn [p1,p2] (hoặc chiều ngược lại) -> gỡ
+                                                for st in list(board.strokes):
+                                                    sp = st.get("points", [])
+                                                    for i in range(len(sp) - 1):
+                                                        if (near(sp[i], p1) and near(sp[i+1], p2)) or (near(sp[i], p2) and near(sp[i+1], p1)):
+                                                            if st in board.strokes:
+                                                                board.strokes.remove(st)
+                                                            break
+                                                board.schedule_redraw()
+                                        except Exception as e:
+                                            print("Realtime DELETE(draw) error:", e)
+                                    else:
+                                        msg_id = record.get("id")
+                                        if msg_id and msg_id in msg_id_list:
+                                            widget = msg_id_list[msg_id]
+                                            if len(widget.parent.children)-1==1: Clock.schedule_once(lambda dt, w=widget: self.msg_list.remove_widget(widget.parent))
+                                            else: Clock.schedule_once(lambda dt, w=widget: widget.parent.remove_widget(widget))
+                                            if len(self.msg_list.children)-1==1:
+                                                Clock.schedule_once(
+                                                    lambda dt, w=widget: self.display_message('ngha' if self.user_id=='hmn' else 'hmn', 'Mong chờ những lời iu thương của {} qaaa :3'.format('hmn' if self.user_id=='hmn' else 'ngha'), '00:00', self.lookup_date, msg_id='0000')
+                                                )
                                 continue
                             
                             if data.get("event") == "INSERT":
