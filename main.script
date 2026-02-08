@@ -69,8 +69,9 @@ from kivy.metrics import dp
 from kivy.utils import platform
 from kivy.uix.widget import Widget
 from kivy.properties import *
-from kivy.graphics import Line, PushMatrix, PopMatrix, Translate, Color
+from kivy.graphics import Line, PushMatrix, PopMatrix, Translate, Color, InstructionGroup
 from plyer import notification
+from uuid import uuid4
 
 ssl_context = ssl.create_default_context()
 ssl_context.check_hostname = False
@@ -284,281 +285,193 @@ def stroke_in_viewport(stroke, vp):
 class InfiniteDrawBoard(Widget):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.strokes = []            # local + remote strokes (pen only lưu ở đây)
-        self.remote_strokes = {}     # sender_id -> stroke (đang vẽ dở)
+
+        # stroke_id -> stroke
+        self.strokes = {}
+
         self.current_stroke = None
-        self.active_touches = {}
-        self.cam_x = 0
-        self.cam_y = 0
-        # --- Tools ---
-        self.tool = "pen"            # "pen" | "eraser"
-        self.eraser_radius = 20
-        self._redraw_ev = None
-        
-        self._erase_queue = []      # hàng đợi điểm tẩy [(ex_norm, ey_norm, r_norm), ...]
-        self._erase_flushing = False
+        self.tool = "pen"   # "pen" | "eraser"
+
+        self.pen_color = (0, 0, 0, 1)
+        self.pen_width = 2.5
+        self.eraser_radius = 18
+
+    # --------------------------------------------------
+    # PEN
+    # --------------------------------------------------
 
     def on_touch_down(self, touch):
-        if not draw_mode:
+        if not self.collide_point(*touch.pos):
             return False
-        self.active_touches[touch.uid] = touch
-        if len(self.active_touches) == 1:
-            wx = touch.x + self.cam_x
-            wy = touch.y + self.cam_y
-            if self.tool == "pen":
-                self.current_stroke = {
-                    "tool": "pen",
-                    "points": [(wx, wy)],
-                    "width": 2,
-                    "color": (0, 0, 0, 1),
-                }
-                self.strokes.append(self.current_stroke)
-            else:  # eraser
-                self.current_stroke = {
-                    "tool": "eraser",
-                    "points": [(wx, wy)],
-                    "radius": self.eraser_radius,
-                }
-                # xóa ngay tại điểm chạm đầu
-                self.erase_at(wx, wy, self.eraser_radius)   
-            self.schedule_redraw()
+
+        wx, wy = self.to_widget(*touch.pos)
+
+        if self.tool == "pen":
+            self._start_stroke(wx, wy)
             return True
+
+        if self.tool == "eraser":
+            self._erase_at(wx, wy)
+            return True
+
         return False
 
     def on_touch_move(self, touch):
-        if not draw_mode:
+        if not self.collide_point(*touch.pos):
             return False
-        if touch.uid not in self.active_touches:
-            return False
-        if self.current_stroke and len(self.active_touches) == 1:
-            wx = touch.x + self.cam_x
-            wy = touch.y + self.cam_y
 
-            if self.current_stroke.get("tool") == "pen":
-                # Chỉ pen mới thêm điểm + gửi segment
-                self.current_stroke["points"].append((wx, wy))
-                self.send_draw_event(self.current_stroke, partial=True)
-            else:
-                # Eraser: KHÔNG append điểm stroke để tránh nhầm lẫn
-                self.erase_at(wx, wy, self.current_stroke.get("radius", self.eraser_radius))
+        wx, wy = self.to_widget(*touch.pos)
 
-            self.schedule_redraw()
+        if self.tool == "pen" and self.current_stroke:
+            self._extend_stroke(wx, wy)
             return True
+
+        if self.tool == "eraser":
+            self._erase_at(wx, wy)
+            return True
+
         return False
-        
+
     def on_touch_up(self, touch):
-        if touch.uid in self.active_touches:
-            self.active_touches.pop(touch.uid)
+        self.current_stroke = None
+        return False
 
-        if self.current_stroke:
-            if self.current_stroke.get("tool") == "pen":
-                self.send_draw_event(self.current_stroke, partial=False)
-            else:
-                # Nhấc tay khi đang tẩy -> gửi xóa một lần
-                self._flush_erase_batch()
-            self.current_stroke = None
-        return True
+    def _start_stroke(self, x, y):
+        stroke_id = uuid4().hex
 
-    def _flush_erase_batch(self):
-        """Gửi batch xoá 1 lần cho các điểm đã tẩy trong _erase_queue."""
-        if not self._erase_queue:
-            return
-        
-        
-        app = MDApp.get_running_app()
-        app.squelch_delete = True
-
-        # Lấy queue và reset
-        queue = self._erase_queue
-        self._erase_queue = []
-
-        # 1) Tạo bbox normalized bao trùm các điểm tẩy (nới tay một chút)
-        def clamp01(v): 
-            return 0.0 if v < 0.0 else (1.0 if v > 1.0 else v)
-
-        xmin = min(clamp01(ex - 2.0 * r) for ex, ey, r in queue)
-        xmax = max(clamp01(ex + 2.0 * r) for ex, ey, r in queue)
-        ymin = min(clamp01(ey - 2.0 * r) for ex, ey, r in queue)
-        ymax = max(clamp01(ey + 2.0 * r) for ex, ey, r in queue)
-
-        def fnum(x): return f"{x:.6f}"
-        or_param = (
-            f"and(points->0->>0.gte.{fnum(xmin)},points->0->>0.lte.{fnum(xmax)},"
-            f"points->0->>1.gte.{fnum(ymin)},points->0->>1.lte.{fnum(ymax)}),"
-            f"and(points->1->>0.gte.{fnum(xmin)},points->1->>0.lte.{fnum(xmax)},"
-            f"points->1->>1.gte.{fnum(ymin)},points->1->>1.lte.{fnum(ymax)})"
+        group = InstructionGroup()
+        group.add(Color(*self.pen_color))
+        line = Line(
+            points=[x, y],
+            width=self.pen_width,
+            cap="round",
+            joint="round"
         )
+        group.add(line)
 
-        base = f"{SUPABASE_URL}/rest/v1/draw"
-        date_str = normalize_date(MDApp.get_running_app().lookup_date)
-        params_get = {
-            "date": f"eq.{date_str}",
-            "or": f"({or_param})",
-            "select": "id,points",
+        stroke = {
+            "id": stroke_id,
+            "group": group,
+            "line": line,
+            "points": [(x, y)],
+            "bbox": [x, y, x, y],  # minx, miny, maxx, maxy
         }
 
-        # 2) GET ứng viên (lọc thô bằng bbox JSON-path)
-        try:
-            res = requests.get(base, headers=headers, params=params_get, timeout=8)
-            if res.status_code != 200:
-                print("Erase GET fail:", res.status_code, res.text)
-                return
-            rows = res.json() or []
-        except Exception as e:
-            print("Erase GET error:", e)
-            return
+        self.strokes[stroke_id] = stroke
+        self.canvas.add(group)
+        self.current_stroke = stroke
 
-        # 3) Lọc chính xác ở client: khoảng cách điểm–đến–đoạn cho từng tâm tẩy trong queue
-        w, h = Window.size
-        ids = set()
+    def _extend_stroke(self, x, y):
+        st = self.current_stroke
+        st["points"].append((x, y))
+        st["line"].points += [x, y]
 
-        def dist2_point_to_segment(cx, cy, x1, y1, x2, y2):
-            vx, vy = x2 - x1, y2 - y1
-            wx, wy = cx - x1, cy - y1
-            vv = vx*vx + vy*vy
-            if vv == 0:
-                dx, dy = cx - x1, cy - y1
-                return dx*dx + dy*dy
-            t = (wx*vx + wy*vy) / vv
-            if t < 0:
-                dx, dy = cx - x1, cy - y1
-            elif t > 1:
-                dx, dy = cx - x2, cy - y2
-            else:
-                px, py = x1 + t*vx, y1 + t*vy
-                dx, dy = cx - px, cy - py
-            return dx*dx + dy*dy
+        bx = st["bbox"]
+        bx[0] = min(bx[0], x)
+        bx[1] = min(bx[1], y)
+        bx[2] = max(bx[2], x)
+        bx[3] = max(bx[3], y)
 
-        for row in rows:
-            pts = row.get("points") or []
-            if len(pts) != 2:
+    # --------------------------------------------------
+    # ERASER
+    # --------------------------------------------------
+
+    def _erase_at(self, cx, cy):
+        r = self.eraser_radius
+        r2 = r * r
+
+        # copy keys để remove an toàn
+        for stroke_id in list(self.strokes.keys()):
+            st = self.strokes[stroke_id]
+            bx = st["bbox"]
+
+            if not self._circle_hits_bbox(cx, cy, r, bx):
                 continue
-            x1, y1 = pts[0][0] * w, pts[0][1] * h
-            x2, y2 = pts[1][0] * w, pts[1][1] * h
 
-            hit = False
-            for ex, ey, r in queue:
-                cx, cy = ex * w, ey * h
-                r2 = (r * max(w, h)) ** 2
-                if dist2_point_to_segment(cx, cy, x1, y1, x2, y2) <= r2:
-                    hit = True
-                    break
-            if hit:
-                ids.add(str(row["id"]))
+            # bbox hit là đủ → xóa stroke
+            self._remove_stroke(stroke_id)
 
-        if not ids:
+    def _remove_stroke(self, stroke_id):
+        st = self.strokes.pop(stroke_id, None)
+        if st:
+            self.canvas.remove(st["group"])
+
+    @staticmethod
+    def _circle_hits_bbox(cx, cy, r, bbox):
+        minx, miny, maxx, maxy = bbox
+        nx = max(minx, min(cx, maxx))
+        ny = max(miny, min(cy, maxy))
+        dx = cx - nx
+        dy = cy - ny
+        return dx * dx + dy * dy <= r * r
+
+    # --------------------------------------------------
+    # REALTIME API
+    # --------------------------------------------------
+
+    def draw_remote_stroke(self, payload):
+        """
+        payload = {
+            "stroke_id": "...",
+            "points": [(x, y), ...],
+            "color": (r,g,b,a),
+            "width": float
+        }
+        """
+        sid = payload["stroke_id"]
+
+        if sid not in self.strokes:
+            self._create_remote_stroke(payload)
             return
 
-        # 4) DELETE theo id in (...)
-        params_del = {"id": f"in.({','.join(ids)})", "date": f"eq.{date_str}"}
-        try:
-            hdrs = dict(headers); hdrs["Prefer"] = "return=representation"
-            res = requests.delete(base, headers=hdrs, params=params_del, timeout=8)
-            if res.status_code not in (200, 204):
-                print("Erase DELETE failed:", res.status_code, res.text)
-        except Exception as e:
-            print("Erase DELETE error:", e)
-        finally:
-            # 🔊 Xong flush: bật lại xử lý realtime và đồng bộ 1 lần (debounce)
-            app.squelch_delete = False
-            # Tuỳ chọn: vì A đã xóa local rồi, thường không cần reload.
-            # Nhưng nếu muốn 'chốt' theo DB: gọi debounce cho nhẹ
-            app._debounced_reload(app.lookup_date, delay=0.15)
+        st = self.strokes[sid]
+        for x, y in payload["points"]:
+            st["points"].append((x, y))
+            st["line"].points += [x, y]
+            bx = st["bbox"]
+            bx[0] = min(bx[0], x)
+            bx[1] = min(bx[1], y)
+            bx[2] = max(bx[2], x)
+            bx[3] = max(bx[3], y)
 
-
-    # SEND REALTIME (pen & eraser, có partial) 
-    def send_draw_event(self, stroke, partial):     
-        if stroke.get("tool") != "pen":
-                return
-
-        if len(stroke["points"]) < 2:
+    def _create_remote_stroke(self, payload):
+        sid = payload["stroke_id"]
+        pts = payload["points"]
+        if not pts:
             return
 
-        w, h = Window.size
-        p1, p2 = stroke["points"][-2:]
+        group = InstructionGroup()
+        with group:
+            Color(*payload["color"])
+            line = Line(
+                points=[c for p in pts for c in p],
+                width=payload["width"],
+                cap="round",
+                joint="round"
+            )
 
-        data = {
-            "sender": MDApp.get_running_app().user_id,
-            "points": [
-                [p1[0]/w, p1[1]/h],
-                [p2[0]/w, p2[1]/h]
-            ],
-            "width": stroke["width"],
-            "color": list(stroke["color"]),
-            "created_at": time.strftime("%H:%M"),
-            "partial": bool(partial),
-            "date": normalize_date(MDApp.get_running_app().lookup_date)
+        xs = [p[0] for p in pts]
+        ys = [p[1] for p in pts]
+
+        self.strokes[sid] = {
+            "id": sid,
+            "group": group,
+            "line": line,
+            "points": list(pts),
+            "bbox": [min(xs), min(ys), max(xs), max(ys)],
         }
 
-        threading.Thread(
-            target=lambda: requests.post(
-                f"{SUPABASE_URL}/rest/v1/draw",
-                headers=headers,
-                json=data
-            ),
-            daemon=True
-        ).start()
+        self.canvas.add(group)
 
-    # ERASE core
-    def erase_at(self, x, y, radius_px):
-        """
-        Xóa LOCAL ngay cho mượt + đưa điểm tẩy vào hàng đợi để gửi sau (khi nhấc tay).
-        KHÔNG gọi DELETE ở đây.
-        """
-        w, h = Window.size
-        cx, cy = x, y
-        r2 = radius_px * radius_px
+    def erase_remote_stroke(self, stroke_id):
+        self._remove_stroke(stroke_id)
 
-        # 1) Xóa LOCAL (bbox-first rồi điểm như bạn đang làm)
-        def circle_intersects_bbox(bx):
-            minx, miny, maxx, maxy = bx
-            qx = cx if minx <= cx <= maxx else (minx if cx < minx else maxx)
-            qy = cy if miny <= cy <= maxy else (miny if cy < miny else maxy)
-            return (qx - cx) ** 2 + (qy - cy) ** 2 <= r2
-
-        removed = False
-        for st in list(self.strokes):
-            bx = st.get("bbox")
-            if bx and not circle_intersects_bbox(bx):
-                continue
-            pts = st.get("points", [])
-            if any((px - cx)**2 + (py - cy)**2 <= r2 for px, py in pts):
-                self.strokes.remove(st)
-                removed = True
-
-        # 2) Bỏ điểm vào queue để gửi sau
-        ex, ey = cx / w, cy / h
-        r_norm = radius_px / max(w, h)
-        self._erase_queue.append((ex, ey, r_norm))
-
-        # redraw đã chạy 60fps qua schedule_redraw; không cần gọi thê
-
-    def redraw(self, *args):
-         self.canvas.clear()
-         with self.canvas:
-             PushMatrix()
-             Translate(-self.cam_x, -self.cam_y)
-             for stroke in self.strokes:
-                 if len(stroke["points"]) < 2:
-                     continue
-                 Color(*stroke["color"])
-                 Line(
-                     points=[c for p in stroke["points"] for c in p],
-                     width=stroke["width"],
-                     cap="round",
-                     joint="round",
-                 )
-             # --- (optional) preview vùng tẩy ---
-             if self.tool == "eraser" and self.current_stroke and self.current_stroke.get("tool") == "eraser":
-                 ex, ey = self.current_stroke["points"][-1]
-                 Color(1, 0, 0, 0.15)
-                 Line(circle=(ex, ey, self.eraser_radius), width=1)
-             PopMatrix()
- 
-    def schedule_redraw(self):
-        """Đăng ký vẽ lại ~60 FPS nếu chưa đăng ký."""
-        if not self._redraw_ev:
-            self._redraw_ev = Clock.schedule_interval(self.redraw, 1 / 60)
+    def clear_all(self):
+    # remove từng stroke khỏi canvas (KHÔNG canvas.clear)
+        for st in list(self.strokes.values()):
+            self.canvas.remove(st["group"])
+        self.strokes.clear()
+        self.current_stroke = None
 
 class OverlayContainer(MDFloatLayout):
     pass
@@ -578,6 +491,10 @@ class ChatApp(MDApp):
         self._last_msg_height = 0
         self.squelch_delete = False       # Đang flush -> bỏ qua DELETE realtime tại A
         self._reload_timer = None
+        self._draw_queue = []
+        self._draw_lock = threading.Lock()
+        self.deleted_strokes = set()
+        self.squelch_delete = False
 
         if os.path.exists("uid.txt"):
             with open("uid.txt", "r") as f:
@@ -697,6 +614,7 @@ class ChatApp(MDApp):
 
         self.load_messages()
         self.listen_realtime()
+        Clock.schedule_interval(self._flush_draw_queue, 1 / 60)
 
         return layout
     
@@ -708,16 +626,7 @@ class ChatApp(MDApp):
         self._reload_timer = Clock.schedule_once(lambda dt: self.load_strokes(date_str), delay) 
 
     def on_scroll(self, scroll, value):
-        vp_h = self.msg_scroll.viewport_size[1]
-        view_h = self.msg_scroll.height
-
-        if vp_h <= view_h:
-            self.draw_canvas.cam_y = 0
-            return
-
-        max_scroll = vp_h - view_h
-        self.draw_canvas.cam_y = max_scroll * value
-        self.draw_canvas.schedule_redraw()
+        return
 
     def status(self, instance, value):
         if value:
@@ -905,8 +814,7 @@ class ChatApp(MDApp):
 
     def load_messages(self, instance=None, date_str=datetime.strftime(datetime.now(), '%d/%m/%Y'), data_range=None):
         self.lookup_date=date_str
-        self.draw_canvas.strokes.clear()
-        self.draw_canvas.remote_strokes.clear()
+        self.draw_canvas.clear_all()
         if not self.noti.button.disabled:
             self.noti.button.disabled=True
             collapse_vertical(self.noti)
@@ -933,7 +841,7 @@ class ChatApp(MDApp):
     def load_strokes(self, date_str):
         url = (
             f"{SUPABASE_URL}/rest/v1/draw"
-            f"?select=points,width,color,partial,sender"
+            f"?select=id,points,width,color"
             f"&date=eq.{date_str}"
             f"&order=created_at.asc"
         )
@@ -942,32 +850,21 @@ class ChatApp(MDApp):
             print("LOAD STROKES FAIL:", res.text)
             return
 
-        rows = res.json()
-        board = self.draw_canvas
-        board.strokes.clear()
-        board.remote_strokes.clear()
+        self.draw_canvas.clear_all()
+
         w, h = Window.size
-
-        # Nếu muốn ghép nét mượt theo sender/partial (giữ nguyên cơ chế cũ)
-        last_pen_by_sender = {}
-        for row in rows:
+        for row in res.json():
             pts = [(x * w, y * h) for x, y in row.get("points", [])]
-            sender = row.get("sender")
+            if not pts:
+                continue
 
-            stroke = last_pen_by_sender.get(sender)
-            if not stroke:
-                stroke = {
-                    "points": [],
-                    "width": row.get("width", 2),
-                    "color": tuple(row.get("color", (0, 0, 0, 1))),
-                }
-                last_pen_by_sender[sender] = stroke
-                board.strokes.append(stroke)
-            stroke["points"].extend(pts)
-            if not row.get("partial", True):
-                last_pen_by_sender.pop(sender, None)
+            self.draw_canvas.draw_remote_stroke({
+                "stroke_id": row["id"],
+                "points": pts,
+                "width": row.get("width", 2),
+                "color": tuple(row.get("color", (0, 0, 0, 1)))
+            })
 
-        board.schedule_redraw()
     def load_far(self, *args):
         url = f"{SUPABASE_URL}/rest/v1/far?select=*&order=start.asc"
         res = requests.get(url, headers=headers)
@@ -1152,19 +1049,26 @@ class ChatApp(MDApp):
 
         threading.Thread(target=send).start()
 
-    def draw_remote_stroke(self, record):
-        if "points" not in record:
+    def _flush_draw_queue(self, dt):
+        if not self._draw_queue:
             return
-        board = self.draw_canvas
+
+        with self._draw_lock:
+            batch = self._draw_queue[:]
+            self._draw_queue.clear()
+
         w, h = Window.size
-        points = [(x * w, y * h) for x, y in record["points"]]
-        stroke = {
-            "points": points,
-            "width": record.get("width", 2),
-            "color": tuple(record.get("color", (0, 0, 0, 1))),
-        }
-        board.strokes.append(stroke)
-        board.schedule_redraw()
+        for r in batch:
+            pts = [(x * w, y * h) for x, y in r.get("points", [])]
+            if not pts:
+                continue
+
+            self.draw_canvas.draw_remote_stroke({
+                "stroke_id": r["id"],
+                "points": pts,
+                "width": r.get("width", 2),
+                "color": tuple(r.get("color", (0,0,0,1)))
+            })
 
     def listen_realtime(self):
         async def realtime_loop():
@@ -1224,10 +1128,14 @@ class ChatApp(MDApp):
                             if not record:
                                 record = data.get("payload", {}).get("old_record", {})
                                 if data.get("event") == "DELETE":
-                                    if data.get("topic") == "realtime:public:draw":                                       
-                                        if getattr(self, "squelch_delete", False):
-                                                continue
-                                        Clock.schedule_once(lambda dt: self.load_strokes(self.lookup_date))
+                                    if data.get("topic") == "realtime:public:draw":
+                                        if self.squelch_delete:
+                                            continue                                
+                                        stroke_id = record.get("id")
+                                        if stroke_id:
+                                            Clock.schedule_once(
+                                                lambda dt, sid=stroke_id: self.draw_canvas.erase_remote_stroke(sid)
+                                            )
                                     else:
                                         msg_id = record.get("id")
                                         if msg_id and msg_id in msg_id_list:
@@ -1246,8 +1154,9 @@ class ChatApp(MDApp):
                                     if record["sender"] != self.user_id:
                                         Clock.schedule_once(lambda dt, r=record: self.spawn_emoji(pos=(r["x"] * w, r["y"] * h)))
                                 elif data["topic"] == "realtime:public:draw":
-                                    if record["sender"] != self.user_id and normalize_date(record["date"])==normalize_date(self.lookup_date):
-                                        Clock.schedule_once(lambda dt, r=record: self.draw_remote_stroke(r))
+                                    if record["sender"] != self.user_id and normalize_date(record["date"]) == normalize_date(self.lookup_date):
+                                        with self._draw_lock:
+                                            self._draw_queue.append(record)
                                 elif data["topic"] == "realtime:public:far":
                                     self.far_day.start_day=record["start"]
                                     self.far_day.is_far=record["status"]
