@@ -39,7 +39,9 @@ EMOJI_LIKE = [
     0x1F587, 0x1F587, 0x1F587, 0x1F587, 0x1F587, 0x1F587, 0x1F587, 0x1F587,
     0x1F587, 0x1F587, 0x1F587, 0x1F587, 0x1F587, 
 ]
-  
+REF_W = 1080
+REF_H = 1920
+
 import asyncio
 import os
 import requests
@@ -296,6 +298,8 @@ class InfiniteDrawBoard(Widget):
         self.pen_width = 2.5
         self.eraser_radius = 18
 
+        self.on_stroke_finished = None
+
     # --------------------------------------------------
     # PEN
     # --------------------------------------------------
@@ -304,7 +308,7 @@ class InfiniteDrawBoard(Widget):
         if not self.collide_point(*touch.pos):
             return False
 
-        wx, wy = self.to_widget(*touch.pos)
+        wx, wy = self.to_local(*touch.pos, relative=True)
 
         if self.tool == "pen":
             self._start_stroke(wx, wy)
@@ -320,7 +324,7 @@ class InfiniteDrawBoard(Widget):
         if not self.collide_point(*touch.pos):
             return False
 
-        wx, wy = self.to_widget(*touch.pos)
+        wx, wy = self.to_local(*touch.pos, relative=True)
 
         if self.tool == "pen" and self.current_stroke:
             self._extend_stroke(wx, wy)
@@ -333,6 +337,9 @@ class InfiniteDrawBoard(Widget):
         return False
 
     def on_touch_up(self, touch):
+        if self.tool == "pen" and self.current_stroke:
+            if self.on_stroke_finished:
+                self.on_stroke_finished(self.current_stroke)
         self.current_stroke = None
         return False
 
@@ -393,9 +400,14 @@ class InfiniteDrawBoard(Widget):
 
     def _remove_stroke(self, stroke_id):
         st = self.strokes.pop(stroke_id, None)
-        if st:
-            self.canvas.remove(st["group"])
+        if not st:
+            return
 
+        self.canvas.remove(st["group"])
+
+        if hasattr(self, "on_stroke_deleted") and self.on_stroke_deleted:
+            self.on_stroke_deleted(stroke_id)
+            
     @staticmethod
     def _circle_hits_bbox(cx, cy, r, bbox):
         minx, miny, maxx, maxy = bbox
@@ -441,14 +453,14 @@ class InfiniteDrawBoard(Widget):
             return
 
         group = InstructionGroup()
-        with group:
-            Color(*payload["color"])
-            line = Line(
+        group.add(Color(*payload["color"]))
+        line = Line(
                 points=[c for p in pts for c in p],
                 width=payload["width"],
                 cap="round",
                 joint="round"
             )
+        group.add(line)
 
         xs = [p[0] for p in pts]
         ys = [p[1] for p in pts]
@@ -537,6 +549,8 @@ class ChatApp(MDApp):
         self.draw_canvas = InfiniteDrawBoard()
         self.draw_canvas.size_hint = (1, None)
         self.draw_canvas.height = self.container.height
+        self.draw_canvas.on_stroke_finished = self._on_local_stroke_finished
+        self.draw_canvas.on_stroke_deleted = self._on_local_stroke_deleted
         self.msg_list.bind(minimum_height=self.msg_list.setter('height'))
         self.msg_list.bind(height=self.sync_overlay_height)
         self.msg_scroll.bind(scroll_y=self.on_scroll)
@@ -612,11 +626,55 @@ class ChatApp(MDApp):
         layout.add_widget(self.input_card)
         layout.add_widget(self.far_day)
 
+        Clock.schedule_interval(self._flush_draw_queue, 1 / 60)
         self.load_messages()
         self.listen_realtime()
-        Clock.schedule_interval(self._flush_draw_queue, 1 / 60)
 
         return layout
+    
+    def _on_local_stroke_deleted(self, stroke_id):
+        self.squelch_delete = True
+
+        def send():
+            url = f"{SUPABASE_URL}/rest/v1/draw?id=eq.{stroke_id}"
+            requests.delete(url, headers=headers)
+            time.sleep(0.15)
+            self.squelch_delete = False
+
+        threading.Thread(target=send, daemon=True).start()
+
+    def _on_local_stroke_finished(self, stroke):
+        points = []
+        for x, y in stroke["points"]:
+            # local → window
+            wx, wy = self.draw_canvas.to_window(
+                x + self.draw_canvas.x,
+                y + self.draw_canvas.y
+            )
+
+            # window → normalized REF
+            points.append((
+                wx / REF_W,
+                wy / REF_H
+            ))
+
+        data = {
+            "id": stroke["id"],
+            "sender": self.user_id,
+            "points": points,
+            "width": stroke["line"].width,
+            "color": list(self.draw_canvas.pen_color),
+            "created_at": time.strftime("%H:%M"),
+            "date": time.strftime("%d/%m/%Y")
+        }
+
+        def send():
+            url = f"{SUPABASE_URL}/rest/v1/draw"
+            res = requests.post(url, headers=headers, json=data)
+            if res.status_code not in (200, 201):
+                print("DRAW INSERT FAIL:", res.text)
+
+        threading.Thread(target=send, daemon=True).start()
     
     def _debounced_reload(self, date_str, delay=0.25):
         if self._reload_timer:
@@ -814,7 +872,9 @@ class ChatApp(MDApp):
 
     def load_messages(self, instance=None, date_str=datetime.strftime(datetime.now(), '%d/%m/%Y'), data_range=None):
         self.lookup_date=date_str
+        self.squelch_delete = True
         self.draw_canvas.clear_all()
+        Clock.schedule_once(lambda dt: setattr(self, "squelch_delete", False), 0.2)
         if not self.noti.button.disabled:
             self.noti.button.disabled=True
             collapse_vertical(self.noti)
@@ -852,9 +912,16 @@ class ChatApp(MDApp):
 
         self.draw_canvas.clear_all()
 
-        w, h = Window.size
         for row in res.json():
-            pts = [(x * w, y * h) for x, y in row.get("points", [])]
+            pts = []
+            for nx, ny in row.get("points", []):
+                # normalized → window
+                wx = nx * REF_W
+                wy = ny * REF_H
+
+                # window → local canvas
+                lx, ly = self.draw_canvas.to_local(wx, wy)
+                pts.append((lx, ly))
             if not pts:
                 continue
 
@@ -1057,9 +1124,13 @@ class ChatApp(MDApp):
             batch = self._draw_queue[:]
             self._draw_queue.clear()
 
-        w, h = Window.size
         for r in batch:
-            pts = [(x * w, y * h) for x, y in r.get("points", [])]
+            pts = []
+            for nx, ny in r.get("points", []):
+                wx = nx * REF_W
+                wy = ny * REF_H
+                lx, ly = self.draw_canvas.to_local(wx, wy)
+                pts.append((lx, ly))
             if not pts:
                 continue
 
