@@ -700,7 +700,8 @@ class ChatApp(MDApp):
             self.msg_list.clear_widgets()
             self.load_messages()
         
-        self.msg_list.remove_widget(msg_id_list['0000'].parent)
+        try: self.msg_list.remove_widget(msg_id_list['0000'].parent)
+        except: pass
 
         msg = self.text_input.input.text
         if msg:
