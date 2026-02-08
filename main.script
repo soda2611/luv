@@ -416,11 +416,14 @@ class InfiniteDrawBoard(Widget):
         self.canvas.clear()
 
         with self.canvas:
+            PushMatrix()
+            Translate(-self.cam_x, -self.cam_y)
+
             for stroke in self.strokes:
                 if len(stroke["points"]) < 2:
                     continue
 
-                Color(*list(stroke["color"]))
+                Color(*stroke["color"])
                 Line(
                     points=[c for p in stroke["points"] for c in p],
                     width=stroke["width"],
@@ -428,10 +431,8 @@ class InfiniteDrawBoard(Widget):
                     joint="round",
                 )
 
-        # 🛑 stop redraw khi không vẽ
-        if not self.current_stroke:
-            Clock.unschedule(self._redraw_ev)
-            del self._redraw_ev
+            PopMatrix()
+
 
 class OverlayContainer(MDFloatLayout):
     pass
@@ -493,6 +494,7 @@ class ChatApp(MDApp):
         self.draw_canvas.height = self.container.height
         self.msg_list.bind(minimum_height=self.msg_list.setter('height'))
         self.msg_list.bind(height=self.sync_overlay_height)
+        self.msg_scroll.bind(scroll_y=self.on_scroll)
         self.container.add_widget(self.msg_list)
         self.container.add_widget(self.draw_canvas)
         self.msg_scroll.add_widget(self.container)
@@ -565,6 +567,18 @@ class ChatApp(MDApp):
 
         return layout
     
+    def on_scroll(self, scroll, value):
+        vp_h = self.msg_scroll.viewport_size[1]
+        view_h = self.msg_scroll.height
+
+        if vp_h <= view_h:
+            self.draw_canvas.cam_y = 0
+            return
+
+        max_scroll = vp_h - view_h
+        self.draw_canvas.cam_y = max_scroll * value
+        self.draw_canvas.schedule_redraw()
+    
     def sync_overlay_height(self, *args):
         self.container.height = self.msg_list.height
         self.draw_canvas.height = self.container.height
@@ -592,7 +606,8 @@ class ChatApp(MDApp):
                 "trailing_icon": "history",
                 "theme_trailing_icon_color": "Custom",
                 "trailing_icon_color": primarycolor,
-                "on_release": self.date_picker_open
+                "on_release": self.date_picker_open,
+                "disabled": True if draw_mode else False
             },
             {
                 "text": "Đổi UID",
@@ -841,23 +856,6 @@ class ChatApp(MDApp):
             self.msg_list.add_widget(msg_card)
         
         msg_id_list[msg_id]=msg_label
-        
-        Clock.schedule_once(self.sync_strokes_after_msg, 0)
-
-    def sync_strokes_after_msg(self, *args):
-        new_h = self.msg_list.height
-        delta = new_h - self._last_msg_height
-
-        if delta > 0:
-            board = self.draw_canvas
-            for stroke in board.strokes:
-                stroke["points"] = [
-                    (x, y + delta) for x, y in stroke["points"]
-                ]
-
-            board.schedule_redraw()
-
-        self._last_msg_height = new_h
 
     def spawn_emoji(self, emoji="\U0001F496", pos=(0, 0), multi=False):
         if not multi:
