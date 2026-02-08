@@ -589,7 +589,9 @@ class ChatApp(MDApp):
         self.draw_canvas.schedule_redraw()
 
     def status(self, instance, value):
-        if value: self.far_day.text=f'[size={int(dp(12))}]{format_text_with_fonts(f"Chúng mình đã xa nhau {(datetime.now() - datetime.strptime(self.far_day.start_day, '%d/%m/%Y')).days} ngày 😭")}[/size]'
+        if value:
+            text=format_text_with_fonts(f"Chúng mình đã xa nhau {(datetime.now() - datetime.strptime(self.far_day.start_day, '%d/%m/%Y')).days} ngày 😭")
+            self.far_day.text=f'[size={int(dp(12))}]{text}[/size]'
     
     def sync_overlay_height(self, *args):
         self.container.height = self.msg_list.height
