@@ -77,6 +77,7 @@ ssl_context.check_hostname = False
 ssl_context.verify_mode = ssl.CERT_NONE
 
 message_cache = []
+msg_id_list={}
 draw_mode=False
 if not os.path.exists("build.txt"): download_file('luv', 'build.txt', 'build.txt')
 with open('build.txt', encoding="utf-8") as fi: build=fi.read()
@@ -669,6 +670,8 @@ class ChatApp(MDApp):
             self.lookup=False
             self.msg_list.clear_widgets()
             self.load_messages()
+        
+        self.msg_list.remove_widget(msg_id_list['0000'].parent)
 
         msg = self.text_input.input.text
         if msg:
@@ -699,9 +702,9 @@ class ChatApp(MDApp):
             rows = res.json()
             if rows:
                 for row in rows:
-                    self.display_message(row['sender'], row['content'], row['created_at'], row['date'])
-            elif datetime.strptime(date_str, "%d/%m/%Y") < datetime.now() and self.lookup_date != datetime.strftime(datetime.now(), "%d/%m/%Y"): self.display_message('ngha' if self.user_id=='hmn' else 'hmn', 'Không có tin nhắn nào cho ngày này hết ;-;', '00:00', date_str)
-            elif datetime.strptime(date_str, "%d/%m/%Y") > datetime.now() or self.lookup_date == datetime.strftime(datetime.now(), "%d/%m/%Y"): self.display_message('ngha' if self.user_id=='hmn' else 'hmn', 'Mong chờ những lời iu thương của {} qaaa :3'.format('hmn' if self.user_id=='hmn' else 'ngha'), '00:00', date_str)
+                    self.display_message(row['sender'], row['content'], row['created_at'], row['date'], row['id'])
+            elif datetime.strptime(date_str, "%d/%m/%Y") < datetime.now() and self.lookup_date != datetime.strftime(datetime.now(), "%d/%m/%Y"): self.display_message('ngha' if self.user_id=='hmn' else 'hmn', 'Không có tin nhắn nào cho ngày này hết ;-;', '00:00', date_str, msg_id='0000')
+            elif datetime.strptime(date_str, "%d/%m/%Y") > datetime.now() or self.lookup_date == datetime.strftime(datetime.now(), "%d/%m/%Y"): self.display_message('ngha' if self.user_id=='hmn' else 'hmn', 'Mong chờ những lời iu thương của {} qaaa :3'.format('hmn' if self.user_id=='hmn' else 'ngha'), '00:00', date_str, msg_id='0000')
             Clock.schedule_once(self.scroll_to_bottom)
         
         self._last_msg_height = self.msg_list.height
@@ -741,7 +744,8 @@ class ChatApp(MDApp):
         if self.msg_scroll.viewport_size[1] > self.msg_scroll.height:
             Animation(scroll_y=0, transition="out_quad").start(self.msg_scroll)
 
-    def display_message(self, sender, content, timestamp, date):            
+    def display_message(self, sender, content, timestamp, date, msg_id):
+        global msg_id_list
         if self.last_date==None or self.last_date != date:
             date_label = MDLabel(
                 text=f"[size={int(dp(12))}]{format_text_with_fonts(date)}[/size]",
@@ -835,6 +839,8 @@ class ChatApp(MDApp):
             msg_card.bind(minimum_height=msg_card.setter('height'))
             
             self.msg_list.add_widget(msg_card)
+        
+        msg_id_list[msg_id]=msg_label
         
         Clock.schedule_once(self.sync_strokes_after_msg, 0)
 
@@ -992,7 +998,19 @@ class ChatApp(MDApp):
 
                             record = data.get("payload", {}).get("record", {})
                             if not record:
+                                record = data.get("payload", {}).get("old_record", {})
+                                if data.get("event") == "DELETE":
+                                    msg_id = record.get("id")
+                                    if msg_id and msg_id in msg_id_list:
+                                        widget = msg_id_list[msg_id]
+                                        if len(widget.parent.children)-1==1: Clock.schedule_once(lambda dt, w=widget: self.msg_list.remove_widget(widget.parent))
+                                        else: Clock.schedule_once(lambda dt, w=widget: widget.parent.remove_widget(widget))
+                                        if len(self.msg_list.children)-1==1:
+                                            Clock.schedule_once(
+                                                lambda dt, w=widget: self.display_message('ngha' if self.user_id=='hmn' else 'hmn', 'Mong chờ những lời iu thương của {} qaaa :3'.format('hmn' if self.user_id=='hmn' else 'ngha'), '00:00', self.lookup_date, msg_id='0000')
+                                            )
                                 continue
+                            
                             if data.get("event") == "INSERT":
                                 if data["topic"] == "realtime:public:reaction":
                                     w, h = Window.size
@@ -1006,14 +1024,15 @@ class ChatApp(MDApp):
                                     content = record["content"]
                                     timestamp = record["created_at"]
                                     date = record["date"]
+                                    msg_id = record["id"]
 
                                     if self.lookup and self.lookup_date != datetime.strftime(datetime.now(), "%d/%m/%Y"):
                                         self.noti.button.disabled=False
                                         expand_vertical(self.noti, dp(40))
                                     else:
                                         Clock.schedule_once(
-                                            lambda dt, s=sender, c=content, t=timestamp, d=date:
-                                            self.display_message(s, c, t, d)
+                                            lambda dt, s=sender, c=content, t=timestamp, d=date, msg_id=msg_id:
+                                            self.display_message(s, c, t, d, msg_id)
                                         )
                                         if 'iu' in content.lower().translate(str.maketrans('', '', '.,?!')).split(): Clock.schedule_once(lambda x: self.spawn_emoji(multi=True))
 
@@ -1022,7 +1041,6 @@ class ChatApp(MDApp):
                                             "Tin nhắn mới",
                                             f"{sender}: {content}"
                                         )
-                                
 
                 except Exception as e:
                     print("Realtime socket died:", e)
