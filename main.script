@@ -294,6 +294,9 @@ class InfiniteDrawBoard(Widget):
         self.tool = "pen"            # "pen" | "eraser"
         self.eraser_radius = 20
         self._redraw_ev = None
+        
+        self._erase_queue = []      # hàng đợi điểm tẩy [(ex_norm, ey_norm, r_norm), ...]
+        self._erase_flushing = False
 
     def on_touch_down(self, touch):
         if not draw_mode:
@@ -331,116 +334,205 @@ class InfiniteDrawBoard(Widget):
             wx = touch.x + self.cam_x
             wy = touch.y + self.cam_y
 
-            self.current_stroke["points"].append((wx, wy))
             if self.current_stroke.get("tool") == "pen":
-                # gửi segment pen (partial)
+                # Chỉ pen mới thêm điểm + gửi segment
+                self.current_stroke["points"].append((wx, wy))
                 self.send_draw_event(self.current_stroke, partial=True)
             else:
-                # tẩy: áp dụng và phát realtime
+                # Eraser: KHÔNG append điểm stroke để tránh nhầm lẫn
                 self.erase_at(wx, wy, self.current_stroke.get("radius", self.eraser_radius))
+
             self.schedule_redraw()
             return True
         return False
-
+        
     def on_touch_up(self, touch):
         if touch.uid in self.active_touches:
             self.active_touches.pop(touch.uid)
-        
+
         if self.current_stroke:
             if self.current_stroke.get("tool") == "pen":
                 self.send_draw_event(self.current_stroke, partial=False)
-            # Nếu là “eraser” -> KHÔNG gửi lên DB
+            else:
+                # Nhấc tay khi đang tẩy -> gửi xóa một lần
+                self._flush_erase_batch()
             self.current_stroke = None
         return True
 
-    # SEND REALTIME (pen & eraser, có partial) 
-    def send_draw_event(self, stroke, partial):
-        if not stroke.get("points"):
+    def _flush_erase_batch(self):
+        """Gửi batch xoá 1 lần cho các điểm đã tẩy trong _erase_queue."""
+        if not self._erase_queue:
             return
+        
+        
+        app = MDApp.get_running_app()
+        app.squelch_delete = True
+
+        # Lấy queue và reset
+        queue = self._erase_queue
+        self._erase_queue = []
+
+        # 1) Tạo bbox normalized bao trùm các điểm tẩy (nới tay một chút)
+        def clamp01(v): 
+            return 0.0 if v < 0.0 else (1.0 if v > 1.0 else v)
+
+        xmin = min(clamp01(ex - 2.0 * r) for ex, ey, r in queue)
+        xmax = max(clamp01(ex + 2.0 * r) for ex, ey, r in queue)
+        ymin = min(clamp01(ey - 2.0 * r) for ex, ey, r in queue)
+        ymax = max(clamp01(ey + 2.0 * r) for ex, ey, r in queue)
+
+        def fnum(x): return f"{x:.6f}"
+        or_param = (
+            f"and(points->0->>0.gte.{fnum(xmin)},points->0->>0.lte.{fnum(xmax)},"
+            f"points->0->>1.gte.{fnum(ymin)},points->0->>1.lte.{fnum(ymax)}),"
+            f"and(points->1->>0.gte.{fnum(xmin)},points->1->>0.lte.{fnum(xmax)},"
+            f"points->1->>1.gte.{fnum(ymin)},points->1->>1.lte.{fnum(ymax)})"
+        )
+
+        base = f"{SUPABASE_URL}/rest/v1/draw"
+        date_str = normalize_date(MDApp.get_running_app().lookup_date)
+        params_get = {
+            "date": f"eq.{date_str}",
+            "or": f"({or_param})",
+            "select": "id,points",
+        }
+
+        # 2) GET ứng viên (lọc thô bằng bbox JSON-path)
+        try:
+            res = requests.get(base, headers=headers, params=params_get, timeout=8)
+            if res.status_code != 200:
+                print("Erase GET fail:", res.status_code, res.text)
+                return
+            rows = res.json() or []
+        except Exception as e:
+            print("Erase GET error:", e)
+            return
+
+        # 3) Lọc chính xác ở client: khoảng cách điểm–đến–đoạn cho từng tâm tẩy trong queue
         w, h = Window.size
-        if len(stroke["points"]) >= 2:
-            p1, p2 = stroke["points"][-2:]
-        else:
-            p1 = p2 = stroke["points"][-1]
+        ids = set()
+
+        def dist2_point_to_segment(cx, cy, x1, y1, x2, y2):
+            vx, vy = x2 - x1, y2 - y1
+            wx, wy = cx - x1, cy - y1
+            vv = vx*vx + vy*vy
+            if vv == 0:
+                dx, dy = cx - x1, cy - y1
+                return dx*dx + dy*dy
+            t = (wx*vx + wy*vy) / vv
+            if t < 0:
+                dx, dy = cx - x1, cy - y1
+            elif t > 1:
+                dx, dy = cx - x2, cy - y2
+            else:
+                px, py = x1 + t*vx, y1 + t*vy
+                dx, dy = cx - px, cy - py
+            return dx*dx + dy*dy
+
+        for row in rows:
+            pts = row.get("points") or []
+            if len(pts) != 2:
+                continue
+            x1, y1 = pts[0][0] * w, pts[0][1] * h
+            x2, y2 = pts[1][0] * w, pts[1][1] * h
+
+            hit = False
+            for ex, ey, r in queue:
+                cx, cy = ex * w, ey * h
+                r2 = (r * max(w, h)) ** 2
+                if dist2_point_to_segment(cx, cy, x1, y1, x2, y2) <= r2:
+                    hit = True
+                    break
+            if hit:
+                ids.add(str(row["id"]))
+
+        if not ids:
+            return
+
+        # 4) DELETE theo id in (...)
+        params_del = {"id": f"in.({','.join(ids)})", "date": f"eq.{date_str}"}
+        try:
+            hdrs = dict(headers); hdrs["Prefer"] = "return=representation"
+            res = requests.delete(base, headers=hdrs, params=params_del, timeout=8)
+            if res.status_code not in (200, 204):
+                print("Erase DELETE failed:", res.status_code, res.text)
+        except Exception as e:
+            print("Erase DELETE error:", e)
+        finally:
+            # 🔊 Xong flush: bật lại xử lý realtime và đồng bộ 1 lần (debounce)
+            app.squelch_delete = False
+            # Tuỳ chọn: vì A đã xóa local rồi, thường không cần reload.
+            # Nhưng nếu muốn 'chốt' theo DB: gọi debounce cho nhẹ
+            app._debounced_reload(app.lookup_date, delay=0.15)
+
+
+    # SEND REALTIME (pen & eraser, có partial) 
+    def send_draw_event(self, stroke, partial):     
+        if stroke.get("tool") != "pen":
+                return
+
+        if len(stroke["points"]) < 2:
+            return
+
+        w, h = Window.size
+        p1, p2 = stroke["points"][-2:]
 
         data = {
             "sender": MDApp.get_running_app().user_id,
-            # KHÔNG gửi "tool"
             "points": [
-                [p1[0] / w, p1[1] / h],
-                [p2[0] / w, p2[1] / h],
+                [p1[0]/w, p1[1]/h],
+                [p2[0]/w, p2[1]/h]
             ],
-            "width": stroke.get("width", 0),
-            # KHÔNG gửi "radius"
-            "color": list(stroke.get("color", (0, 0, 0, 1))),
-            "partial": bool(partial),                 # nếu bạn còn dùng để ghép nét
+            "width": stroke["width"],
+            "color": list(stroke["color"]),
             "created_at": time.strftime("%H:%M"),
-            "date": normalize_date(MDApp.get_running_app().lookup_date),
+            "partial": bool(partial),
+            "date": normalize_date(MDApp.get_running_app().lookup_date)
         }
 
         threading.Thread(
             target=lambda: requests.post(
-                f"{SUPABASE_URL}/rest/v1/draw", headers=headers, json=data
+                f"{SUPABASE_URL}/rest/v1/draw",
+                headers=headers,
+                json=data
             ),
-            daemon=True,
+            daemon=True
         ).start()
 
     # ERASE core
-    def erase_at(self, x, y, radius):
+    def erase_at(self, x, y, radius_px):
         """
-        Xóa các segment (đoạn [[x1,y1],[x2,y2]]) có một đầu mút nằm trong vòng tẩy.
-        Không đổi schema DB. Gỡ LOCAL ngay + DELETE qua REST filters (JSON-path + dung sai).
+        Xóa LOCAL ngay cho mượt + đưa điểm tẩy vào hàng đợi để gửi sau (khi nhấc tay).
+        KHÔNG gọi DELETE ở đây.
         """
-
         w, h = Window.size
-        r2 = radius * radius
+        cx, cy = x, y
+        r2 = radius_px * radius_px
 
-        # 1) Gỡ LOCAL: xóa cả stroke nào có đầu mút lọt vòng tròn (đơn giản, nhanh)
+        # 1) Xóa LOCAL (bbox-first rồi điểm như bạn đang làm)
+        def circle_intersects_bbox(bx):
+            minx, miny, maxx, maxy = bx
+            qx = cx if minx <= cx <= maxx else (minx if cx < minx else maxx)
+            qy = cy if miny <= cy <= maxy else (miny if cy < miny else maxy)
+            return (qx - cx) ** 2 + (qy - cy) ** 2 <= r2
+
         removed = False
         for st in list(self.strokes):
+            bx = st.get("bbox")
+            if bx and not circle_intersects_bbox(bx):
+                continue
             pts = st.get("points", [])
-            if any((px - x)**2 + (py - y)**2 <= r2 for px, py in pts):
+            if any((px - cx)**2 + (py - cy)**2 <= r2 for px, py in pts):
                 self.strokes.remove(st)
                 removed = True
-        if removed:
-            self.schedule_redraw()
 
-        # 2) DELETE trên DB: dùng JSON-path + khoảng dung sai (tránh eq nguyên JSON)
-        # chuẩn hoá tọa độ (giống lúc INSERT)
-        ex = x / w
-        ey = y / h
+        # 2) Bỏ điểm vào queue để gửi sau
+        ex, ey = cx / w, cy / h
+        r_norm = radius_px / max(w, h)
+        self._erase_queue.append((ex, ey, r_norm))
 
-        # dung sai: quy đổi radius (pixel) -> normalized
-        eps = 1.5 * (radius / max(w, h))
-        x_min = ex - eps; x_max = ex + eps
-        y_min = ey - eps; y_max = ey + eps
+        # redraw đã chạy 60fps qua schedule_redraw; không cần gọi thê
 
-        # PostgREST or= (p1 trong bbox) OR (p2 trong bbox)
-        def fnum(v): return f"{v:.6f}"
-        or_param = (
-            f"and(points->0->>0.gte.{fnum(x_min)},points->0->>0.lte.{fnum(x_max)},"
-            f"points->0->>1.gte.{fnum(y_min)},points->0->>1.lte.{fnum(y_max)}),"
-            f"and(points->1->>0.gte.{fnum(x_min)},points->1->>0.lte.{fnum(x_max)},"
-            f"points->1->>1.gte.{fnum(y_min)},points->1->>1.lte.{fnum(y_max)})"
-        )
-
-        date_str = normalize_date(MDApp.get_running_app().lookup_date)
-        base = f"{SUPABASE_URL}/rest/v1/draw"
-        params = {  # để requests tự encode
-            "date": f"eq.{date_str}",
-            "or": f"({or_param})",
-        }
-
-        def _delete():
-            try:
-                res = requests.delete(base, headers=headers, params=params)
-                if res.status_code not in (200, 204):
-                    print("Erase DELETE failed:", res.status_code, res.text)
-            except Exception as e:
-                print("Erase DELETE error:", e)
-
-        threading.Thread(target=_delete, daemon=True).start()
-    
     def redraw(self, *args):
          self.canvas.clear()
          with self.canvas:
@@ -484,6 +576,8 @@ class ChatApp(MDApp):
         self.lookup = False
         self.lookup_date = datetime.strftime(datetime.now(), "%d/%m/%Y")
         self._last_msg_height = 0
+        self.squelch_delete = False       # Đang flush -> bỏ qua DELETE realtime tại A
+        self._reload_timer = None
 
         if os.path.exists("uid.txt"):
             with open("uid.txt", "r") as f:
@@ -606,6 +700,13 @@ class ChatApp(MDApp):
 
         return layout
     
+    def _debounced_reload(self, date_str, delay=0.25):
+        if self._reload_timer:
+            try: self._reload_timer.cancel()
+            except: pass
+            self._reload_timer = None
+        self._reload_timer = Clock.schedule_once(lambda dt: self.load_strokes(date_str), delay) 
+
     def on_scroll(self, scroll, value):
         vp_h = self.msg_scroll.viewport_size[1]
         view_h = self.msg_scroll.height
@@ -1123,7 +1224,9 @@ class ChatApp(MDApp):
                             if not record:
                                 record = data.get("payload", {}).get("old_record", {})
                                 if data.get("event") == "DELETE":
-                                    if data.get("topic") == "realtime:public:draw":
+                                    if data.get("topic") == "realtime:public:draw":                                       
+                                        if getattr(self, "squelch_delete", False):
+                                                continue
                                         Clock.schedule_once(lambda dt: self.load_strokes(self.lookup_date))
                                     else:
                                         msg_id = record.get("id")
