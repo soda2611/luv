@@ -832,7 +832,8 @@ class ChatApp(MDApp):
     def load_strokes(self, date_str):
         url = (
             f"{SUPABASE_URL}/rest/v1/draw"
-            f"?select=*&date=eq.{date_str}"
+            f"?select=points,width,color,partial,sender"
+            f"&date=eq.{date_str}"
             f"&order=created_at.asc"
         )
         res = requests.get(url, headers=headers)
@@ -1123,28 +1124,7 @@ class ChatApp(MDApp):
                                 record = data.get("payload", {}).get("old_record", {})
                                 if data.get("event") == "DELETE":
                                     if data.get("topic") == "realtime:public:draw":
-                                        try:
-                                            pts = record.get("points") or []
-                                            if len(pts) == 2:
-                                                w, h = Window.size
-                                                p1 = (pts[0][0] * w, pts[0][1] * h)
-                                                p2 = (pts[1][0] * w, pts[1][1] * h)
-
-                                                board = self.draw_canvas
-                                                def near(a, b, eps=3):
-                                                    return abs(a[0]-b[0]) <= eps and abs(a[1]-b[1]) <= eps
-
-                                                # Tìm stroke chứa đoạn [p1,p2] (hoặc chiều ngược lại) -> gỡ
-                                                for st in list(board.strokes):
-                                                    sp = st.get("points", [])
-                                                    for i in range(len(sp) - 1):
-                                                        if (near(sp[i], p1) and near(sp[i+1], p2)) or (near(sp[i], p2) and near(sp[i+1], p1)):
-                                                            if st in board.strokes:
-                                                                board.strokes.remove(st)
-                                                            break
-                                                board.schedule_redraw()
-                                        except Exception as e:
-                                            print("Realtime DELETE(draw) error:", e)
+                                        Clock.schedule_once(lambda dt: self.load_strokes(self.lookup_date))
                                     else:
                                         msg_id = record.get("id")
                                         if msg_id and msg_id in msg_id_list:
