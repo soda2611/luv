@@ -71,7 +71,7 @@ from kivy.metrics import dp
 from kivy.utils import platform
 from kivy.uix.widget import Widget
 from kivy.properties import *
-from kivy.graphics import Line, PushMatrix, PopMatrix, Translate, Color, InstructionGroup
+from kivy.graphics import Line, PushMatrix, PopMatrix, Translate, Color, InstructionGroup, Rectangle
 from plyer import notification
 from uuid import uuid4
 
@@ -692,9 +692,13 @@ class ChatApp(MDApp):
             self.far_day.text=f'[size={int(dp(12))}]{text}[/size]'
     
     def sync_overlay_height(self, *args):
-        self.container.height = self.msg_list.height
-        self.draw_canvas.height = self.container.height
-        self.draw_canvas.y = self.container.y
+        paper_height = max(
+            self.msg_list.height,
+            self.msg_scroll.height
+        )
+        self.container.height = paper_height
+        self.draw_canvas.height = paper_height
+        self.draw_canvas.y = self.msg_list.y
 
     def date_picker_open(self):
         self.menu.dismiss()
