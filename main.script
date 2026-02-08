@@ -644,7 +644,6 @@ class ChatApp(MDApp):
         def send():
             url = f"{SUPABASE_URL}/rest/v1/draw?id=eq.{stroke_id}"
             requests.delete(url, headers=headers)
-            time.sleep(0.15)
             self.squelch_delete = False
 
         threading.Thread(target=send, daemon=True).start()
@@ -1253,6 +1252,8 @@ class ChatApp(MDApp):
                                         self.noti.button.disabled=False
                                         expand_vertical(self.noti, dp(40))
                                     else:
+                                        try: Clock.schedule_once(lambda dt: self.msg_list.remove_widget(msg_id_list['0000'].parent))
+                                        except: pass
                                         Clock.schedule_once(
                                             lambda dt, s=sender, c=content, t=timestamp, d=date, msg_id=msg_id:
                                             self.display_message(s, c, t, d, msg_id)
