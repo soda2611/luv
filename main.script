@@ -265,6 +265,10 @@ class CustomMDBoxLayout(MDBoxLayout):
         widget.opacity = self.opacity
         self.bind(opacity=lambda instance, value: setattr(widget, 'opacity', value))
 
+class FarDay(MDLabel):
+    is_far = BooleanProperty(False)
+    start_day = StringProperty('01/01/0001')
+
 # ---------- Utils ----------
 
 def stroke_in_viewport(stroke, vp):
@@ -513,6 +517,7 @@ class ChatApp(MDApp):
         
         # Text input layout
         self.text_input = MDBoxLayout(size_hint=(1, None), height=dp(50), spacing=dp(5))
+        self.far_day = FarDay(markup=True, size_hint=(1, None), height=dp(10), halign="center")
         self.text_input.input = LimitedTextField(
             hint_text="Viết lời iu thương vào đây nề <3",
             line_color_normal=boxbg,
@@ -547,6 +552,9 @@ class ChatApp(MDApp):
         self.input_card.add_widget(self.text_input)
         
         # Bind text changes for button enable/disable
+        self.far_day.bind(is_far=self.status)
+        self.far_day.bind(texture_size=self.far_day.setter("texture_size"))
+        self.far_day.bind(texture_size=self.far_day.setter("size"))
         self.text_input.input.bind(text=self.on_text_change)
 
         self.noti=CustomMDBoxLayout(size_hint=(1, None), height=dp(0), padding=dp(5))
@@ -561,6 +569,7 @@ class ChatApp(MDApp):
         layout.add_widget(self.noti)    
         layout.add_widget(self.msg_scroll)
         layout.add_widget(self.input_card)
+        layout.add_widget(self.far_day)
 
         self.load_messages()
         self.listen_realtime()
@@ -578,6 +587,9 @@ class ChatApp(MDApp):
         max_scroll = vp_h - view_h
         self.draw_canvas.cam_y = max_scroll * value
         self.draw_canvas.schedule_redraw()
+
+    def status(self, instance, value):
+        if value: self.far_day.text=f'[size={int(dp(12))}]{format_text_with_fonts(f"Chúng mình đã xa nhau {(datetime.now() - datetime.strptime(self.far_day.start_day, '%d/%m/%Y')).days} ngày 😭")}[/size]'
     
     def sync_overlay_height(self, *args):
         self.container.height = self.msg_list.height
@@ -723,6 +735,7 @@ class ChatApp(MDApp):
             Clock.schedule_once(self.scroll_to_bottom)
         
         self._last_msg_height = self.msg_list.height
+        Clock.schedule_once(self.load_far)
         Clock.schedule_once(lambda dt: self.load_strokes(date_str), 0)
 
     def load_strokes(self, date_str):
@@ -754,6 +767,15 @@ class ChatApp(MDApp):
             })
 
         board.schedule_redraw()
+
+    def load_far(self, *args):
+        url = f"{SUPABASE_URL}/rest/v1/far?select=*&order=start.asc"
+        res = requests.get(url, headers=headers)
+        if res.status_code == 200:
+            rows = res.json()
+            print(rows[-1])
+            self.far_day.start_day=rows[-1]['start']
+            self.far_day.is_far=rows[-1]['status']
 
     def scroll_to_bottom(self, *args):        
         if self.msg_scroll.viewport_size[1] > self.msg_scroll.height:
@@ -990,6 +1012,13 @@ class ChatApp(MDApp):
                             "ref": 3
                         }))
 
+                        await ws.send(json.dumps({
+                            "topic": "realtime:public:far",
+                            "event": "phx_join",
+                            "payload": {},
+                            "ref": 4
+                        }))
+
                         while True:
                             msg = await ws.recv()
                             data = json.loads(msg)
@@ -1017,6 +1046,9 @@ class ChatApp(MDApp):
                                 elif data["topic"] == "realtime:public:draw":
                                     if record["sender"] != self.user_id and normalize_date(record["date"])==normalize_date(self.lookup_date):
                                         Clock.schedule_once(lambda dt, r=record: self.draw_remote_stroke(r))
+                                elif data["topic"] == "realtime:public:far":
+                                    self.far_day.start_day=record["start"]
+                                    self.far_day.is_far=record["status"]
                                 else:
                                     sender = record["sender"]
                                     content = record["content"]
