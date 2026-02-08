@@ -1216,7 +1216,8 @@ class ChatApp(MDApp):
                                         if msg_id and msg_id in msg_id_list:
                                             widget = msg_id_list[msg_id]
                                             if len(widget.parent.children)-1==1: Clock.schedule_once(lambda dt, w=widget: self.msg_list.remove_widget(widget.parent))
-                                            else: Clock.schedule_once(lambda dt, w=widget: widget.parent.remove_widget(widget))
+                                            else:
+                                                if widget.parent: Clock.schedule_once(lambda dt, w=widget: widget.parent.remove_widget(widget))
                                             if len(self.msg_list.children)-1==1:
                                                 Clock.schedule_once(
                                                     lambda dt, w=widget: self.display_message('ngha' if self.user_id=='hmn' else 'hmn', 'Mong chờ những lời iu thương của {} qaaa :3'.format('hmn' if self.user_id=='hmn' else 'ngha'), '00:00', self.lookup_date, msg_id='0000')
