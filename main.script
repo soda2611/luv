@@ -39,8 +39,9 @@ EMOJI_LIKE = [
     0x1F587, 0x1F587, 0x1F587, 0x1F587, 0x1F587, 0x1F587, 0x1F587, 0x1F587,
     0x1F587, 0x1F587, 0x1F587, 0x1F587, 0x1F587, 
 ]
-REF_W = 0
-REF_H = 0
+REF_W = 1080
+REF_H = 1920
+
 
 import asyncio
 import os
@@ -230,6 +231,28 @@ def normalize_date(d):
     if isinstance(d, str):
         return d
     return d.strftime("%d/%m/%Y")
+
+def _lb_params():
+    """Tính uniform scale và offset (letterbox) để khớp REF vào window hiện tại."""
+    win_w, win_h = Window.size
+    s = min(win_w / float(REF_W), win_h / float(REF_H))  # uniform
+    offx = (win_w - REF_W * s) / 2.0
+    offy = (win_h - REF_H * s) / 2.0
+    return s, offx, offy
+
+def world_to_norm(wx, wy):
+    """Window → normalized theo khung tham chiếu với uniform scale."""
+    s, ox, oy = _lb_params()
+    nx = (wx - ox) / (s * REF_W)
+    ny = (wy - oy) / (s * REF_H)
+    return nx, ny
+
+def norm_to_world(nx, ny):
+    """Normalized → window (thiết bị hiện tại) bằng uniform scale."""
+    s, ox, oy = _lb_params()
+    wx = nx * REF_W * s + ox
+    wy = ny * REF_H * s + oy
+    return wx, wy
 
 Window.minimum_width, Window.minimum_height= 400, 500
 Window.softinput_mode = "below_target"
@@ -655,16 +678,14 @@ class ChatApp(MDApp):
             # local (draw_canvas) → window (KHÔNG cộng offset x/y)
             wx, wy = self.draw_canvas.to_window(x, y, relative=True)
             # window → normalized theo kích thước Window hiện tại
-            points.append((
-                wx / float(REF_W),
-                wy / float(REF_H)
-            ))
+            nx, ny = world_to_norm(wx, wy)
+            points.append((nx, ny))
 
         data = {
             "id": stroke["id"],
             "sender": self.user_id,
             "points": points,
-            "width": stroke["line"].width,
+            "width": stroke["line"].width / _lb_params()[0],
             "color": list(self.draw_canvas.pen_color),
             "created_at": time.strftime("%H:%M"),
             "date": time.strftime("%d/%m/%Y")
@@ -893,10 +914,9 @@ class ChatApp(MDApp):
         for row in res.json():
             pts = []
             for nx, ny in row.get("points", []):
-                # normalized → window (máy nhận)
-                wx = float(nx) * float(REF_W)
-                wy = float(ny) * float(REF_H)
-                # window → local (đúng ngữ nghĩa, xử lý cả scroll/offset)
+                # normalized → window theo uniform scale + letterbox
+                wx, wy = norm_to_world(nx, ny)
+                # window → local
                 lx, ly = self.draw_canvas.to_widget(wx, wy, relative=False)
                 pts.append((lx, ly))
 
@@ -906,8 +926,9 @@ class ChatApp(MDApp):
             self.draw_canvas.draw_remote_stroke({
                 "stroke_id": row["id"],
                 "points": pts,
-                "width": row.get("width", 2),
-                "color": tuple(row.get("color", (0, 0, 0, 1)))
+                # width: nhân lại uniform scale để không “ốm/béo” giữa thiết bị
+                "width": row.get("width", 2) * _lb_params()[0],
+                "color": tuple(row.get("color", (0, 0, 0, 1))),
             })
 
     def load_far(self, *args):
@@ -1105,17 +1126,15 @@ class ChatApp(MDApp):
         for r in batch:
             pts = []
             for nx, ny in r.get("points", []):
-                wx = float(nx) * float(REF_W)
-                wy = float(ny) * float(REF_H)
+                wx, wy = norm_to_world(nx, ny)
                 lx, ly = self.draw_canvas.to_widget(wx, wy, relative=False)
                 pts.append((lx, ly))
             if not pts:
                 continue
-
             self.draw_canvas.draw_remote_stroke({
                 "stroke_id": r["id"],
                 "points": pts,
-                "width": r.get("width", 2),
+                "width": r.get("width", 2) * _lb_params()[0],
                 "color": tuple(r.get("color", (0,0,0,1)))
             })
 
