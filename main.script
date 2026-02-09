@@ -513,12 +513,10 @@ class ChatApp(MDApp):
         self.lookup = False
         self.lookup_date = datetime.strftime(datetime.now(), "%d/%m/%Y")
         self._last_msg_height = 0
-        self.squelch_delete = False       # Đang flush -> bỏ qua DELETE realtime tại A
         self._reload_timer = None
         self._draw_queue = []
         self._draw_lock = threading.Lock()
         self.deleted_strokes = set()
-        self.squelch_delete = False
 
         if os.path.exists("uid.txt"):
             with open("uid.txt", "r") as f:
@@ -645,12 +643,9 @@ class ChatApp(MDApp):
         return layout
     
     def _on_local_stroke_deleted(self, stroke_id):
-        self.squelch_delete = True
-
         def send():
             url = f"{SUPABASE_URL}/rest/v1/draw?id=eq.{stroke_id}"
             requests.delete(url, headers=headers)
-            self.squelch_delete = False
 
         threading.Thread(target=send, daemon=True).start()
 
@@ -857,9 +852,7 @@ class ChatApp(MDApp):
 
     def load_messages(self, instance=None, date_str=datetime.strftime(datetime.now(), '%d/%m/%Y'), data_range=None):
         self.lookup_date=date_str
-        self.squelch_delete = True
         self.draw_canvas.clear_all()
-        Clock.schedule_once(lambda dt: setattr(self, "squelch_delete", False), 0.2)
         if not self.noti.button.disabled:
             self.noti.button.disabled=True
             collapse_vertical(self.noti)
@@ -1184,9 +1177,7 @@ class ChatApp(MDApp):
                             if not record:
                                 record = data.get("payload", {}).get("old_record", {})
                                 if data.get("event") == "DELETE":
-                                    if data.get("topic") == "realtime:public:draw":
-                                        if self.squelch_delete:
-                                            continue                                
+                                    if data.get("topic") == "realtime:public:draw":            
                                         stroke_id = record.get("id")
                                         if stroke_id:
                                             Clock.schedule_once(
