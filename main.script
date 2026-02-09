@@ -52,6 +52,7 @@ import random
 import websockets
 import ssl
 import json
+import re
 from datetime import datetime
 from kivymd.app import MDApp
 from kivymd.uix.boxlayout import MDBoxLayout
@@ -74,7 +75,7 @@ from kivy.uix.widget import Widget
 from kivy.properties import *
 from kivy.graphics import Line, PushMatrix, PopMatrix, Translate, Color, InstructionGroup, Rectangle
 from plyer import notification
-from uuid import uuid4
+from uuid import uuid4, UUID
 
 ssl_context = ssl.create_default_context()
 ssl_context.check_hostname = False
@@ -231,6 +232,31 @@ def normalize_date(d):
     if isinstance(d, str):
         return d
     return d.strftime("%d/%m/%Y")
+
+UUID32_RE = re.compile(r'^[0-9a-fA-F]{32}$')
+UUID36_RE = re.compile(r'^[0-9a-fA-F\-]{36}$')
+
+def norm_uuid_hyphen(s: str) -> str:
+    """
+    Trả về UUID chuẩn hóa 36 ký tự (có gạch), lowercase.
+    - Nhận dạng: chuỗi 32 hex (không gạch) hoặc 36 ký tự có gạch.
+    - Nếu không parse được: raise ValueError để bạn còn log/xử lý.
+    """
+    if not s:
+        raise ValueError("Empty stroke_id")
+    s = s.strip()
+
+    # Tạo đối tượng UUID sẽ tự hiểu cả dạng 32 và 36 (có/không gạch)
+    try:
+        u = UUID(s)  # sẽ raise nếu s không hợp lệ
+    except ValueError:
+        # Thử trường hợp bạn lỡ truyền mixed-case/extra-chars
+        if UUID32_RE.match(s.replace('-', '')):
+            u = UUID(s.replace('-', ''))
+        else:
+            raise
+
+    return str(u)
 
 def _lb_params():
     """Tính uniform scale và offset (letterbox) để khớp REF vào window hiện tại."""
@@ -397,8 +423,6 @@ class InfiniteDrawBoard(Widget):
         self.canvas.add(group)
         self.current_stroke = stroke
 
-        print(stroke_id)
-
     def _extend_stroke(self, x, y):
         st = self.current_stroke
         st["points"].append((x, y))
@@ -428,12 +452,10 @@ class InfiniteDrawBoard(Widget):
             self._remove_stroke(stroke_id)
 
     def _remove_stroke(self, stroke_id):
-        print(stroke_id)
-        st = self.strokes.pop(stroke_id, None)
+        st = self.strokes.pop(norm_uuid_hyphen(stroke_id), None)
         if not st:
-            print("failed")
             return
-
+        
         self.canvas.remove(st["group"])
 
         if hasattr(self, "on_stroke_deleted") and self.on_stroke_deleted:
@@ -453,14 +475,6 @@ class InfiniteDrawBoard(Widget):
     # --------------------------------------------------
 
     def draw_remote_stroke(self, payload):
-        """
-        payload = {
-            "stroke_id": "...",
-            "points": [(x, y), ...],
-            "color": (r,g,b,a),
-            "width": float
-        }
-        """
         sid = payload["stroke_id"]
 
         if sid not in self.strokes:
@@ -938,7 +952,6 @@ class ChatApp(MDApp):
         res = requests.get(url, headers=headers)
         if res.status_code == 200:
             rows = res.json()
-            print(rows[-1])
             self.far_day.start_day=rows[-1]['start']
             self.far_day.is_far=rows[-1]['status']
 
@@ -1211,7 +1224,7 @@ class ChatApp(MDApp):
                                     elif data.get("topic") == "realtime:public:draw":
                                         stroke_id = record.get("id")
                                         Clock.schedule_once(
-                                            lambda dt, sid=stroke_id: self.draw_canvas.erase_remote_stroke(sid.replace('-', ""))
+                                            lambda dt, sid=stroke_id: self.draw_canvas.erase_remote_stroke(sid)
                                         )
                                 continue
                             
@@ -1315,8 +1328,6 @@ class ChatApp(MDApp):
         res = requests.get(url, headers=headers)
         if res.status_code == 200:
             rows = res.json()
-            print(datetime.strftime(datetime.now(), '%d/%m/%Y'))
-            print(rows and rows[-1]['build'])
             if rows and rows[-1]['build']!=build:
                 with open('build.txt', "w", encoding='utf-8') as fo: fo.write(rows[-1]['build'])
                 Clock.schedule_once(lambda dt: self.update())
