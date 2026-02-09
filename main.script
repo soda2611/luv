@@ -943,8 +943,7 @@ class ChatApp(MDApp):
             self.far_day.is_far=rows[-1]['status']
 
     def scroll_to_bottom(self, *args):        
-        if self.msg_list.height > self.msg_scroll.height:
-            Animation(scroll_y=0, transition="out_quad").start(self.msg_scroll)
+        Animation(scroll_y=0, transition="out_quad").start(self.msg_scroll)
 
     def display_message(self, sender, content, timestamp, date, msg_id):
         global msg_id_list
