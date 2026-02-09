@@ -652,10 +652,7 @@ class ChatApp(MDApp):
         points = []
         for x, y in stroke["points"]:
             # local → window
-            wx, wy = self.draw_canvas.to_window(
-                x + self.draw_canvas.x,
-                y + self.draw_canvas.y
-            )
+            wx, wy = self.draw_canvas.to_window(x, y, relative=True)
 
             # window → normalized REF
             points.append((
@@ -903,7 +900,7 @@ class ChatApp(MDApp):
                 wy = ny * REF_H
 
                 # window → local canvas
-                lx, ly = self.draw_canvas.to_local(wx, wy)
+                lx, ly = self.draw_canvas.to_local(wx, wy, relative=True)
                 pts.append((lx, ly))
             if not pts:
                 continue
