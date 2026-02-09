@@ -1197,16 +1197,16 @@ class ChatApp(MDApp):
                             if not record:
                                 record = data.get("payload", {}).get("old_record", {})
                                 if data.get("event") == "DELETE":
-                                    if data.get("topic") == "realtime:public:message":
+                                    if data.get("topic") == "realtime:public:messages":
                                         msg_id = record.get("id")
                                         if msg_id and msg_id in msg_id_list:
                                             widget = msg_id_list[msg_id]
-                                            if len(widget.parent.children)-1==1: Clock.schedule_once(lambda dt, w=widget: self.msg_list.remove_widget(widget.parent))
+                                            if len(widget.parent.children)-1==1: Clock.schedule_once(lambda dt, w=widget: self.msg_list.remove_widget(w.parent))
                                             else:
-                                                if widget.parent: Clock.schedule_once(lambda dt, w=widget: widget.parent.remove_widget(widget))
+                                                if widget.parent: Clock.schedule_once(lambda dt, w=widget: widget.parent.remove_widget(w))
                                             if len(self.msg_list.children)-1==1:
                                                 Clock.schedule_once(
-                                                    lambda dt, w=widget: self.display_message('ngha' if self.user_id=='hmn' else 'hmn', 'Mong chờ những lời iu thương của {} qaaa :3'.format('hmn' if self.user_id=='hmn' else 'ngha'), '00:00', self.lookup_date, msg_id='0000')
+                                                    lambda dt: self.display_message('ngha' if self.user_id=='hmn' else 'hmn', 'Mong chờ những lời iu thương của {} qaaa :3'.format('hmn' if self.user_id=='hmn' else 'ngha'), '00:00', self.lookup_date, msg_id='0000')
                                                 )
                                     elif data.get("topic") == "realtime:public:draw":
                                         stroke_id = record.get("id")
@@ -1238,8 +1238,7 @@ class ChatApp(MDApp):
                                         self.noti.button.disabled=False
                                         expand_vertical(self.noti, dp(40))
                                     else:
-                                        try: Clock.schedule_once(lambda dt: self.msg_list.remove_widget(msg_id_list['0000'].parent))
-                                        except: pass
+                                        if msg_id_list.get('0000'): Clock.schedule_once(lambda dt: self.msg_list.remove_widget(msg_id_list['0000'].parent))
                                         Clock.schedule_once(
                                             lambda dt, s=sender, c=content, t=timestamp, d=date, msg_id=msg_id:
                                             self.display_message(s, c, t, d, msg_id)
