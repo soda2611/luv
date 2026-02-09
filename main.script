@@ -231,6 +231,14 @@ def normalize_date(d):
         return d
     return d.strftime("%d/%m/%Y")
 
+def window_to_norm(wx, wy):
+    ww, wh = Window.size
+    return wx / ww, wy / wh
+
+def norm_to_window(nx, ny):
+    ww, wh = Window.size
+    return nx * ww, ny * wh
+
 Window.minimum_width, Window.minimum_height= 400, 500
 Window.softinput_mode = "below_target"
 
@@ -497,6 +505,7 @@ class OverlayContainer(MDAnchorLayout):
 # --- ChatApp ---
 class ChatApp(MDApp):
     def build(self):
+        Window.bind(on_resize=lambda *x: self.on_resize())
         self.app_in_foreground = True
 
         self.icon="resources/img/Icon.png"
@@ -653,12 +662,8 @@ class ChatApp(MDApp):
         for x, y in stroke["points"]:
             # local → window
             wx, wy = self.draw_canvas.to_window(x, y, relative=True)
-
-            # window → normalized REF
-            points.append((
-                wx / REF_W,
-                wy / REF_H
-            ))
+            nx, ny = window_to_norm(wx, wy)
+            points.append((nx, ny))
 
         data = {
             "id": stroke["id"],
@@ -895,12 +900,9 @@ class ChatApp(MDApp):
         for row in res.json():
             pts = []
             for nx, ny in row.get("points", []):
-                # normalized → window
-                wx = nx * REF_W
-                wy = ny * REF_H
-
-                # window → local canvas
+                wx, wy = norm_to_window(nx, ny)
                 lx, ly = self.draw_canvas.to_local(wx, wy, relative=True)
+                pts.append((lx, ly))
                 pts.append((lx, ly))
             if not pts:
                 continue
@@ -1318,6 +1320,9 @@ class ChatApp(MDApp):
         self.app_in_foreground = True
         message_cache = []
         return True
+    
+    def on_resize(self, *args):
+        self._debounced_reload(self.lookup_date)
 
 '''def apply_temp_updates():
     mapping = {
