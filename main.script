@@ -399,7 +399,7 @@ class InfiniteDrawBoard(Widget):
         return False
 
     def _start_stroke(self, x, y):
-        stroke_id = uuid4().hex
+        stroke_id = norm_uuid_hyphen(str(uuid4().hex))
 
         group = InstructionGroup()
         group.add(Color(*self.pen_color))
@@ -475,9 +475,11 @@ class InfiniteDrawBoard(Widget):
     # --------------------------------------------------
 
     def draw_remote_stroke(self, payload):
-        sid = payload["stroke_id"]
+        sid = norm_uuid_hyphen(payload["stroke_id"]) 
 
         if sid not in self.strokes:
+            payload = dict(payload)
+            payload["stroke_id"] = sid
             self._create_remote_stroke(payload)
             return
 
@@ -492,7 +494,7 @@ class InfiniteDrawBoard(Widget):
             bx[3] = max(bx[3], y)
 
     def _create_remote_stroke(self, payload):
-        sid = payload["stroke_id"]
+        sid = norm_uuid_hyphen(payload["stroke_id"])
         pts = payload["points"]
         if not pts:
             return
@@ -521,7 +523,7 @@ class InfiniteDrawBoard(Widget):
         self.canvas.add(group)
 
     def erase_remote_stroke(self, stroke_id):
-        self._remove_stroke(stroke_id)
+        self._remove_stroke(norm_uuid_hyphen(stroke_id))
 
     def clear_all(self):
     # remove từng stroke khỏi canvas (KHÔNG canvas.clear)
@@ -683,7 +685,7 @@ class ChatApp(MDApp):
     
     def _on_local_stroke_deleted(self, stroke_id):
         def send():
-            url = f"{SUPABASE_URL}/rest/v1/draw?id=eq.{stroke_id}"
+            url = f"{SUPABASE_URL}/rest/v1/draw?id=eq.{norm_uuid_hyphen(stroke_id)}"
             requests.delete(url, headers=headers)
 
         threading.Thread(target=send, daemon=True).start()
@@ -698,7 +700,7 @@ class ChatApp(MDApp):
             points.append((nx, ny))
 
         data = {
-            "id": stroke["id"],
+            "id": norm_uuid_hyphen(stroke["id"]),
             "sender": self.user_id,
             "points": points,
             "width": stroke["line"].width / _lb_params()[0],
@@ -940,7 +942,7 @@ class ChatApp(MDApp):
                 continue
 
             self.draw_canvas.draw_remote_stroke({
-                "stroke_id": row["id"],
+                "stroke_id": norm_uuid_hyphen(row["id"]),
                 "points": pts,
                 # width: nhân lại uniform scale để không “ốm/béo” giữa thiết bị
                 "width": row.get("width", 2) * _lb_params()[0],
@@ -1146,7 +1148,7 @@ class ChatApp(MDApp):
             if not pts:
                 continue
             self.draw_canvas.draw_remote_stroke({
-                "stroke_id": r["id"],
+                "stroke_id": norm_uuid_hyphen(r["id"]),
                 "points": pts,
                 "width": r.get("width", 2) * _lb_params()[0],
                 "color": tuple(r.get("color", (0,0,0,1)))
@@ -1222,7 +1224,7 @@ class ChatApp(MDApp):
                                                     lambda dt: self.display_message('ngha' if self.user_id=='hmn' else 'hmn', 'Mong chờ những lời iu thương của {} qaaa :3'.format('hmn' if self.user_id=='hmn' else 'ngha'), '00:00', self.lookup_date, msg_id='0000')
                                                 )
                                     elif data.get("topic") == "realtime:public:draw":
-                                        stroke_id = record.get("id")
+                                        stroke_id = norm_uuid_hyphen(record.get("id"))
                                         Clock.schedule_once(
                                             lambda dt, sid=stroke_id: self.draw_canvas.erase_remote_stroke(sid)
                                         )
