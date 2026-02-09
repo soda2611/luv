@@ -39,8 +39,8 @@ EMOJI_LIKE = [
     0x1F587, 0x1F587, 0x1F587, 0x1F587, 0x1F587, 0x1F587, 0x1F587, 0x1F587,
     0x1F587, 0x1F587, 0x1F587, 0x1F587, 0x1F587, 
 ]
-REF_W = 1080
-REF_H = 1920
+REF_W = 0
+REF_H = 0
 
 import asyncio
 import os
@@ -230,14 +230,6 @@ def normalize_date(d):
     if isinstance(d, str):
         return d
     return d.strftime("%d/%m/%Y")
-
-def window_to_norm(wx, wy):
-    ww, wh = Window.size
-    return wx / ww, wy / wh
-
-def norm_to_window(nx, ny):
-    ww, wh = Window.size
-    return nx * ww, ny * wh
 
 Window.minimum_width, Window.minimum_height= 400, 500
 Window.softinput_mode = "below_target"
@@ -505,7 +497,12 @@ class OverlayContainer(MDAnchorLayout):
 # --- ChatApp ---
 class ChatApp(MDApp):
     def build(self):
-        Window.bind(on_resize=lambda *x: self.on_resize())
+        def _update_ref(*args):
+            global REF_W, REF_H
+            REF_W, REF_H = Window.size
+        _update_ref()
+        Window.bind(size=lambda *a: _update_ref())
+
         self.app_in_foreground = True
 
         self.icon="resources/img/Icon.png"
@@ -660,10 +657,13 @@ class ChatApp(MDApp):
     def _on_local_stroke_finished(self, stroke):
         points = []
         for x, y in stroke["points"]:
-            # local → window
+            # local (draw_canvas) → window (KHÔNG cộng offset x/y)
             wx, wy = self.draw_canvas.to_window(x, y, relative=True)
-            nx, ny = window_to_norm(wx, wy)
-            points.append((nx, ny))
+            # window → normalized theo kích thước Window hiện tại
+            points.append((
+                wx / float(REF_W),
+                wy / float(REF_H)
+            ))
 
         data = {
             "id": stroke["id"],
@@ -900,10 +900,13 @@ class ChatApp(MDApp):
         for row in res.json():
             pts = []
             for nx, ny in row.get("points", []):
-                wx, wy = norm_to_window(nx, ny)
-                lx, ly = self.draw_canvas.to_local(wx, wy, relative=True)
+                # normalized → window (máy nhận)
+                wx = float(nx) * float(REF_W)
+                wy = float(ny) * float(REF_H)
+                # window → local (đúng ngữ nghĩa, xử lý cả scroll/offset)
+                lx, ly = self.draw_canvas.to_widget(wx, wy, relative=False)
                 pts.append((lx, ly))
-                pts.append((lx, ly))
+
             if not pts:
                 continue
 
@@ -1105,13 +1108,13 @@ class ChatApp(MDApp):
         with self._draw_lock:
             batch = self._draw_queue[:]
             self._draw_queue.clear()
-
+        
         for r in batch:
             pts = []
             for nx, ny in r.get("points", []):
-                wx = nx * REF_W
-                wy = ny * REF_H
-                lx, ly = self.draw_canvas.to_local(wx, wy)
+                wx = float(nx) * float(REF_W)
+                wy = float(ny) * float(REF_H)
+                lx, ly = self.draw_canvas.to_widget(wx, wy, relative=False)
                 pts.append((lx, ly))
             if not pts:
                 continue
@@ -1320,9 +1323,6 @@ class ChatApp(MDApp):
         self.app_in_foreground = True
         message_cache = []
         return True
-    
-    def on_resize(self, *args):
-        self._debounced_reload(self.lookup_date)
 
 '''def apply_temp_updates():
     mapping = {
