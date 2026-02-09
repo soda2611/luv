@@ -397,6 +397,8 @@ class InfiniteDrawBoard(Widget):
         self.canvas.add(group)
         self.current_stroke = stroke
 
+        print(stroke_id)
+
     def _extend_stroke(self, x, y):
         st = self.current_stroke
         st["points"].append((x, y))
@@ -414,7 +416,6 @@ class InfiniteDrawBoard(Widget):
 
     def _erase_at(self, cx, cy):
         r = self.eraser_radius
-        r2 = r * r
 
         # copy keys để remove an toàn
         for stroke_id in list(self.strokes.keys()):
@@ -424,12 +425,13 @@ class InfiniteDrawBoard(Widget):
             if not self._circle_hits_bbox(cx, cy, r, bx):
                 continue
 
-            # bbox hit là đủ → xóa stroke
             self._remove_stroke(stroke_id)
 
     def _remove_stroke(self, stroke_id):
+        print(stroke_id)
         st = self.strokes.pop(stroke_id, None)
         if not st:
+            print("failed")
             return
 
         self.canvas.remove(st["group"])
@@ -1196,13 +1198,7 @@ class ChatApp(MDApp):
                             if not record:
                                 record = data.get("payload", {}).get("old_record", {})
                                 if data.get("event") == "DELETE":
-                                    if data.get("topic") == "realtime:public:draw":            
-                                        stroke_id = record.get("id")
-                                        if stroke_id:
-                                            Clock.schedule_once(
-                                                lambda dt, sid=stroke_id: self.draw_canvas.erase_remote_stroke(sid)
-                                            )
-                                    else:
+                                    if data.get("topic") == "realtime:public:message":
                                         msg_id = record.get("id")
                                         if msg_id and msg_id in msg_id_list:
                                             widget = msg_id_list[msg_id]
@@ -1213,6 +1209,11 @@ class ChatApp(MDApp):
                                                 Clock.schedule_once(
                                                     lambda dt, w=widget: self.display_message('ngha' if self.user_id=='hmn' else 'hmn', 'Mong chờ những lời iu thương của {} qaaa :3'.format('hmn' if self.user_id=='hmn' else 'ngha'), '00:00', self.lookup_date, msg_id='0000')
                                                 )
+                                    elif data.get("topic") == "realtime:public:draw":
+                                        stroke_id = record.get("id")
+                                        Clock.schedule_once(
+                                            lambda dt, sid=stroke_id: self.draw_canvas.erase_remote_stroke(sid.replace('-', ""))
+                                        )
                                 continue
                             
                             if data.get("event") == "INSERT":
