@@ -516,9 +516,6 @@ class InfiniteDrawBoard(Widget):
             )
         group.add(line)
 
-        xs = [p[0] for p in pts]
-        ys = [p[1] for p in pts]
-
         self.strokes[sid] = {
             "id": sid,
             "group": group,
