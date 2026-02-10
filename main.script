@@ -1287,7 +1287,8 @@ class ChatApp(MDApp):
                     md_bg_color=btn,
                     on_release=self.stop
                 )
-            ]
+            ],
+            auto_dismiss=False,
         )
         dialog.open()
 
