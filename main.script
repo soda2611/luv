@@ -1285,7 +1285,7 @@ class ChatApp(MDApp):
                 MDFillRoundFlatButton(
                     text="OK",
                     md_bg_color=btn,
-                    on_release=lambda x: dialog.dismiss()
+                    on_release=self.stop
                 )
             ]
         )
