@@ -73,7 +73,7 @@ from kivy.metrics import dp
 from kivy.utils import platform
 from kivy.uix.widget import Widget
 from kivy.properties import *
-from kivy.graphics import Line, PushMatrix, PopMatrix, Translate, Color, InstructionGroup, Rectangle
+from kivy.graphics import Line, PushMatrix, PopMatrix, Translate, Color, InstructionGroup, Rectangle, Scale
 from plyer import notification
 from uuid import uuid4, UUID
 
@@ -258,27 +258,11 @@ def norm_uuid_hyphen(s: str) -> str:
 
     return str(u)
 
-def _lb_params():
-    """Tính uniform scale và offset (letterbox) để khớp REF vào window hiện tại."""
-    win_w, win_h = Window.size
-    s = min(win_w / float(REF_W), win_h / float(REF_H))  # uniform
-    offx = (win_w - REF_W * s) / 2.0
-    offy = (win_h - REF_H * s) / 2.0
-    return s, offx, offy
+def canvas_to_norm(canvas, x, y):
+    return x / canvas.width, y / canvas.height
 
-def world_to_norm(wx, wy):
-    """Window → normalized theo khung tham chiếu với uniform scale."""
-    s, ox, oy = _lb_params()
-    nx = (wx - ox) / (s * REF_W)
-    ny = (wy - oy) / (s * REF_H)
-    return nx, ny
-
-def norm_to_world(nx, ny):
-    """Normalized → window (thiết bị hiện tại) bằng uniform scale."""
-    s, ox, oy = _lb_params()
-    wx = nx * REF_W * s + ox
-    wy = ny * REF_H * s + oy
-    return wx, wy
+def norm_to_canvas(canvas, nx, ny):
+    return nx * canvas.width, ny * canvas.height
 
 Window.minimum_width, Window.minimum_height= 400, 500
 Window.softinput_mode = "below_target"
@@ -348,6 +332,20 @@ class InfiniteDrawBoard(Widget):
         self.eraser_radius = 18
 
         self.on_stroke_finished = None
+        self.bind(size=self._apply_flip, pos=self._apply_flip)
+        Clock.schedule_once(self._apply_flip, 0)
+        
+    def _apply_flip(self, *args):
+        self.canvas.before.clear()
+        self.canvas.after.clear()
+
+        with self.canvas.before:
+            PushMatrix()
+            Translate(0, self.height)
+            Scale(1, -1, 1)
+
+        with self.canvas.after:
+            PopMatrix()
 
     # --------------------------------------------------
     # PEN
@@ -360,6 +358,7 @@ class InfiniteDrawBoard(Widget):
             return False
 
         wx, wy = self.to_local(*touch.pos, relative=True)
+        wy = self.height - wy
 
         if self.tool == "pen":
             self._start_stroke(wx, wy)
@@ -378,6 +377,7 @@ class InfiniteDrawBoard(Widget):
             return False
 
         wx, wy = self.to_local(*touch.pos, relative=True)
+        wy = self.height - wy 
 
         if self.tool == "pen" and self.current_stroke:
             self._extend_stroke(wx, wy)
@@ -485,6 +485,7 @@ class InfiniteDrawBoard(Widget):
 
         st = self.strokes[sid]
         for x, y in payload["points"]:
+            y = self.height - y
             st["points"].append((x, y))
             st["line"].points += [x, y]
             bx = st["bbox"]
@@ -501,8 +502,11 @@ class InfiniteDrawBoard(Widget):
 
         group = InstructionGroup()
         group.add(Color(*payload["color"]))
+        fixed_pts = []
+        for x, y in pts:
+            fixed_pts.append((x, self.height - y))
         line = Line(
-                points=[c for p in pts for c in p],
+                points=[c for p in fixed_pts for c in p],
                 width=payload["width"],
                 cap="round",
                 joint="round"
@@ -598,8 +602,7 @@ class ChatApp(MDApp):
         self.msg_list = MDBoxLayout(orientation="vertical", size_hint=(1, None), spacing=dp(10), padding=[0, dp(10), 0, dp(10)])
         self.container = OverlayContainer(size_hint=(1, None), anchor_y='top')
         self.draw_canvas = InfiniteDrawBoard()
-        self.draw_canvas.size_hint = (1, None)
-        self.draw_canvas.height = self.container.height
+        self.draw_canvas.size_hint = (None, None)
         self.draw_canvas.on_stroke_finished = self._on_local_stroke_finished
         self.draw_canvas.on_stroke_deleted = self._on_local_stroke_deleted
         self.msg_list.bind(minimum_height=self.msg_list.setter('height'))
@@ -677,8 +680,9 @@ class ChatApp(MDApp):
         layout.add_widget(self.input_card)
         layout.add_widget(self.far_day)
 
+        Clock.schedule_once(lambda dt: self.sync_overlay_height(), 0)
+        Clock.schedule_once(lambda dt: self.load_messages(), 0)
         Clock.schedule_interval(self._flush_draw_queue, 1 / 60)
-        self.load_messages()
         self.listen_realtime()
 
         return layout
@@ -692,18 +696,18 @@ class ChatApp(MDApp):
 
     def _on_local_stroke_finished(self, stroke):
         points = []
+        cw, ch = self.draw_canvas.width, self.draw_canvas.height
+
         for x, y in stroke["points"]:
-            # local (draw_canvas) → window (KHÔNG cộng offset x/y)
-            wx, wy = self.draw_canvas.to_window(x, y, relative=True)
-            # window → normalized theo kích thước Window hiện tại
-            nx, ny = world_to_norm(wx, wy)
+            nx = x / cw
+            ny = y / ch
             points.append((nx, ny))
 
         data = {
             "id": norm_uuid_hyphen(stroke["id"]),
             "sender": self.user_id,
             "points": points,
-            "width": stroke["line"].width / _lb_params()[0],
+            "width": 2,  # scale theo canvas
             "color": list(self.draw_canvas.pen_color),
             "created_at": time.strftime("%H:%M"),
             "date": time.strftime("%d/%m/%Y")
@@ -733,13 +737,12 @@ class ChatApp(MDApp):
             self.far_day.text=f'[size={int(dp(12))}]{text}[/size]'
     
     def sync_overlay_height(self, *args):
-        paper_height = max(
-            self.msg_list.height,
-            self.msg_scroll.height
-        )
+        paper_height = max(self.msg_list.height, self.msg_scroll.height)
+
         self.container.height = paper_height
+        self.draw_canvas.width = self.container.width
         self.draw_canvas.height = paper_height
-        self.draw_canvas.y = self.msg_list.y
+        self.draw_canvas.pos = self.msg_list.pos
 
     def date_picker_open(self):
         self.menu.dismiss()
@@ -929,24 +932,20 @@ class ChatApp(MDApp):
 
         self.draw_canvas.clear_all()
 
+        cw, ch = self.draw_canvas.width, self.draw_canvas.height
+
         for row in res.json():
             pts = []
-            for nx, ny in row.get("points", []):
-                # normalized → window theo uniform scale + letterbox
-                wx, wy = norm_to_world(nx, ny)
-                # window → local
-                lx, ly = self.draw_canvas.to_widget(wx, wy, relative=False)
-                pts.append((lx, ly))
-
-            if not pts:
-                continue
+            for nx, ny in row["points"]:
+                x = nx * cw
+                y = ch - (ny * ch)
+                pts.append((x, y))
 
             self.draw_canvas.draw_remote_stroke({
                 "stroke_id": norm_uuid_hyphen(row["id"]),
                 "points": pts,
-                # width: nhân lại uniform scale để không “ốm/béo” giữa thiết bị
-                "width": row.get("width", 2) * _lb_params()[0],
-                "color": tuple(row.get("color", (0, 0, 0, 1))),
+                "width": 2,
+                "color": tuple(row["color"]),
             })
 
     def load_far(self, *args):
@@ -1142,15 +1141,16 @@ class ChatApp(MDApp):
         for r in batch:
             pts = []
             for nx, ny in r.get("points", []):
-                wx, wy = norm_to_world(nx, ny)
-                lx, ly = self.draw_canvas.to_widget(wx, wy, relative=False)
-                pts.append((lx, ly))
+                cw, ch = self.draw_canvas.width, self.draw_canvas.height
+                x = nx * cw
+                y = ch - (ny * ch)
+                pts.append((x, y))
             if not pts:
                 continue
             self.draw_canvas.draw_remote_stroke({
                 "stroke_id": norm_uuid_hyphen(r["id"]),
                 "points": pts,
-                "width": r.get("width", 2) * _lb_params()[0],
+                "width": 2,
                 "color": tuple(r.get("color", (0,0,0,1)))
             })
 
