@@ -357,7 +357,7 @@ class InfiniteDrawBoard(Widget):
         if not self.collide_point(*touch.pos):
             return False
 
-        wx, wy = self.to_local(*touch.pos, relative=True)
+        wx, wy = self.to_local(*touch.pos)
         wy = self.height - wy
 
         if self.tool == "pen":
@@ -376,8 +376,8 @@ class InfiniteDrawBoard(Widget):
         if not self.collide_point(*touch.pos):
             return False
 
-        wx, wy = self.to_local(*touch.pos, relative=True)
-        wy = self.height - wy 
+        wx, wy = self.to_local(*touch.pos)
+        wy = self.height - wy
 
         if self.tool == "pen" and self.current_stroke:
             self._extend_stroke(wx, wy)
@@ -505,6 +505,9 @@ class InfiniteDrawBoard(Widget):
         fixed_pts = []
         for x, y in pts:
             fixed_pts.append((x, self.height - y))
+
+        xs = [p[0] for p in fixed_pts]
+        ys = [p[1] for p in fixed_pts]
         line = Line(
                 points=[c for p in fixed_pts for c in p],
                 width=payload["width"],
@@ -520,7 +523,7 @@ class InfiniteDrawBoard(Widget):
             "id": sid,
             "group": group,
             "line": line,
-            "points": list(pts),
+            "points": fixed_pts,
             "bbox": [min(xs), min(ys), max(xs), max(ys)],
         }
 
@@ -742,7 +745,6 @@ class ChatApp(MDApp):
         self.container.height = paper_height
         self.draw_canvas.width = self.container.width
         self.draw_canvas.height = 100000
-        self.draw_canvas.pos = self.msg_list.pos
 
     def date_picker_open(self):
         self.menu.dismiss()
