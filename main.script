@@ -1273,6 +1273,7 @@ class ChatApp(MDApp):
             title="Đang cập nhật nề",
             text="Bạn iu chờ tẹo nhó...",
             md_bg_color=menubg,
+            auto_dismiss=False,
         )
         self.update_dialog.open()
 
