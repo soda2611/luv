@@ -710,7 +710,7 @@ class ChatApp(MDApp):
             "width": 2,  # scale theo canvas
             "color": list(self.draw_canvas.pen_color),
             "created_at": time.strftime("%H:%M"),
-            "date": time.strftime("%d/%m/%Y")
+            "date": datetime.strftime(self.lookup_date, "%d/%m/%Y")
         }
 
         def send():
@@ -741,6 +741,7 @@ class ChatApp(MDApp):
 
         self.container.height = paper_height
         self.draw_canvas.width = self.container.width
+        self.draw_canvas.pos = self.msg_list.pos
         self.draw_canvas.height = dp(100000)
 
     def date_picker_open(self):
@@ -894,6 +895,7 @@ class ChatApp(MDApp):
     def load_messages(self, instance=None, date_str=datetime.strftime(datetime.now(), '%d/%m/%Y'), data_range=None):
         self.lookup_date=date_str
         self.draw_canvas.clear_all()
+        self.msg_list.clear_widgets()
         if not self.noti.button.disabled:
             self.noti.button.disabled=True
             collapse_vertical(self.noti)
@@ -901,7 +903,6 @@ class ChatApp(MDApp):
             date_str=datetime.strptime(str(date_str), "%Y-%m-%d").strftime("%d/%m/%Y")
             if date_str==self.lookup_date: return
             self.lookup=True
-            self.msg_list.clear_widgets()
         url = f"{SUPABASE_URL}/rest/v1/messages?select=*&date=eq.{date_str}&order=created_at.asc"
         res = requests.get(url, headers=headers)
         if res.status_code == 200:
