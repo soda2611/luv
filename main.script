@@ -740,8 +740,8 @@ class ChatApp(MDApp):
         paper_height = max(self.msg_list.height, self.msg_scroll.height)
 
         self.container.height = paper_height
-        self.draw_canvas.width = 100000
-        self.draw_canvas.height = 100000
+        self.draw_canvas.width = dp(100000)
+        self.draw_canvas.height = dp(100000)
 
     def date_picker_open(self):
         self.menu.dismiss()
