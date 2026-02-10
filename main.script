@@ -1204,10 +1204,16 @@ class ChatApp(MDApp):
                             "ref": 4
                         }))
 
+                        await ws.send(json.dumps({
+                            "topic": "realtime:public:version",
+                            "event": "phx_join",
+                            "payload": {},
+                            "ref": 5
+                        }))
+
                         while True:
                             msg = await ws.recv()
                             data = json.loads(msg)
-
                             record = data.get("payload", {}).get("record", {})
                             if not record:
                                 record = data.get("payload", {}).get("old_record", {})
@@ -1223,7 +1229,11 @@ class ChatApp(MDApp):
                                             lambda dt, sid=stroke_id: self.draw_canvas.erase_remote_stroke(sid)
                                         )
                                 continue
-                            
+
+                            if data.get("event") == "UPDATE" and data["topic"] == "realtime:public:version" and datetime.strptime(record["date"], "%d/%m/%Y").date() >= datetime.now().date() and build!=record["build"]:
+                                    with open('build.txt', "w", encoding='utf-8') as fo: fo.write(record['build'])
+                                    Clock.schedule_once(lambda dt: self.update())
+
                             if data.get("event") == "INSERT":
                                 if data["topic"] == "realtime:public:reaction":
                                     w, h = Window.size
