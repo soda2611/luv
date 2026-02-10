@@ -603,6 +603,7 @@ class ChatApp(MDApp):
         self.container = OverlayContainer(size_hint=(1, None), anchor_y='top')
         self.draw_canvas = InfiniteDrawBoard()
         self.draw_canvas.size_hint = (None, None)
+        self.draw_canvas.height = 100000
         self.draw_canvas.on_stroke_finished = self._on_local_stroke_finished
         self.draw_canvas.on_stroke_deleted = self._on_local_stroke_deleted
         self.msg_list.bind(minimum_height=self.msg_list.setter('height'))
@@ -741,7 +742,6 @@ class ChatApp(MDApp):
 
         self.container.height = paper_height
         self.draw_canvas.width = self.container.width
-        self.draw_canvas.height = paper_height
         self.draw_canvas.pos = self.msg_list.pos
 
     def date_picker_open(self):
