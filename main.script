@@ -741,7 +741,6 @@ class ChatApp(MDApp):
 
         self.container.height = paper_height
         self.draw_canvas.width = self.container.width
-        self.draw_canvas.pos = self.msg_list.pos
         self.draw_canvas.height = dp(100000)
 
     def date_picker_open(self):
