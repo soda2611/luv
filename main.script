@@ -317,7 +317,7 @@ def stroke_in_viewport(stroke, vp):
     return not (max_x < vx1 or min_x > vx2 or max_y < vy1 or min_y > vy2)
 
 # ---------- Draw Board ----------
-class InfiniteDrawBoard(Widget):
+class InfiniteDrawBoard(MDAnchorLayout):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
@@ -687,6 +687,33 @@ class ChatApp(MDApp):
 
         return layout
     
+    def stroke_to_norm_points(self, stroke):
+        cw, ch = self.draw_canvas.width, self.draw_canvas.height
+        norm_pts = []
+
+        for x, y in stroke["points"]:
+            nx = x / cw
+            ny = y / ch
+            norm_pts.append((nx, ny))
+
+        return norm_pts
+    
+    def update_stroke_to_db(self, stroke):
+        stroke_id = norm_uuid_hyphen(stroke["id"])
+        points = self.stroke_to_norm_points(stroke)
+
+        data = {
+            "points": points
+        }
+
+        def send():
+            url = f"{SUPABASE_URL}/rest/v1/draw?id=eq.{stroke_id}"
+            res = requests.patch(url, headers=headers, json=data)
+            if res.status_code not in (200, 204):
+                print("STROKE UPDATE FAIL:", res.text)
+
+        threading.Thread(target=send, daemon=True).start()
+    
     def _on_local_stroke_deleted(self, stroke_id):
         def send():
             url = f"{SUPABASE_URL}/rest/v1/draw?id=eq.{norm_uuid_hyphen(stroke_id)}"
@@ -739,9 +766,28 @@ class ChatApp(MDApp):
     def sync_overlay_height(self, *args):
         paper_height = max(self.msg_list.height, self.msg_scroll.height)
 
+        old_h = self.draw_canvas.height
+
         self.container.height = paper_height
         self.draw_canvas.width = self.container.width
         self.draw_canvas.height = paper_height
+
+        # nếu height thực sự thay đổi → update stroke
+        if old_h != paper_height:
+            self.update_all_strokes_after_resize()
+
+    def update_all_strokes_after_resize(self):
+        if hasattr(self, "_resize_timer") and self._resize_timer:
+            self._resize_timer.cancel()
+
+        self._resize_timer = Clock.schedule_once(
+            lambda dt: self._commit_stroke_resize(),
+            0.3
+        )
+
+    def _commit_stroke_resize(self):
+        for stroke in self.draw_canvas.strokes.values():
+            self.update_stroke_to_db(stroke)
 
     def date_picker_open(self):
         self.menu.dismiss()
