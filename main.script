@@ -581,10 +581,8 @@ class ChatApp(MDApp):
             theme_text_color="Custom",
             text_color=primarycolor,
             md_bg_color=bg,
-            on_release=self.update,
-            pos_hint={"center_y": 0.5}
+            on_release=self.update
         )
-        self.online_status = MDCard(size_hint=(None, None), size=(dp(10), dp(10)), radius=dp(50), md_bg_color='gray', pos_hint={"center_y": 0.5})
         self.top_label = MDFillRoundFlatButton(
             text="\u2600 <3 \u2B50",
             theme_text_color="Custom",
@@ -592,12 +590,10 @@ class ChatApp(MDApp):
             md_bg_color=boxbg,
             text_color=primarycolor,
             font_name="resources/fonts/seguiemj.ttf",
-            on_release=self.change_text,
-            pos_hint={"center_y": 0.5}
+            on_release=self.change_text
         )
         self.top_bar.add_widget(self.top_icon)
-        self.top_bar.add_widget(MDBoxLayout(size_hint=(1, 1), pos_hint={"center_y": 0.5}))
-        self.top_bar.add_widget(self.online_status)
+        self.top_bar.add_widget(MDBoxLayout(size_hint=(1, 1)))
         self.top_bar.add_widget(self.top_label)
         self.top_bar.add_widget(self.uid_button)
         
@@ -1204,31 +1200,6 @@ class ChatApp(MDApp):
                 "color": tuple(r.get("color", (0,0,0,1)))
             })
 
-    def update_status(self, status):
-        self.online_status.md_bg_color='green' if status else 'gray'
-
-    def send_online_status(self):
-        data = {
-            "status": "TRUE"
-        }
-
-        def send():
-            url = f"{SUPABASE_URL}/rest/v1/user?sender=eq.{self.user_id}"
-            requests.patch(url, headers=headers, json=data)
-
-        threading.Thread(target=send, daemon=True).start()
-
-    def send_offline_status(self):
-        data = {
-            "status": "FALSE"
-        }
-
-        def send():
-            url = f"{SUPABASE_URL}/rest/v1/user?sender=eq.{self.user_id}"
-            requests.patch(url, headers=headers, json=data)
-
-        threading.Thread(target=send, daemon=True).start()
-
     def listen_realtime(self):
         async def realtime_loop():
             while True:  # 🔁 vòng reconnect
@@ -1286,13 +1257,6 @@ class ChatApp(MDApp):
                             "ref": 5
                         }))
 
-                        await ws.send(json.dumps({
-                            "topic": "realtime:public:user",
-                            "event": "phx_join",
-                            "payload": {},
-                            "ref": 6
-                        }))
-
                         while True:
                             msg = await ws.recv()
                             data = json.loads(msg)
@@ -1312,26 +1276,23 @@ class ChatApp(MDApp):
                                         )
                                 continue
 
-                            if data.get("event") == "UPDATE":
-                                if data["topic"] == "realtime:public:version" and datetime.strptime(record["date"], "%d/%m/%Y").date() >= datetime.now().date() and build!=record["build"]:
+                            if data.get("event") == "UPDATE" and data["topic"] == "realtime:public:version" and datetime.strptime(record["date"], "%d/%m/%Y").date() >= datetime.now().date() and build!=record["build"]:
                                     with open('build.txt', "w", encoding='utf-8') as fo: fo.write(record['build'])
                                     Clock.schedule_once(lambda dt: self.update())
-                                if data["topic"] == "realtime:public:user":
-                                    if record["sender"]!=self.user_id: Clock.schedule_once(lambda dt: self.update_status(record["status"]))
 
                             if data.get("event") == "INSERT":
                                 if data["topic"] == "realtime:public:reaction":
                                     w, h = Window.size
                                     if record["sender"] != self.user_id:
                                         Clock.schedule_once(lambda dt, r=record: self.spawn_emoji(pos=(r["x"] * w, r["y"] * h)))
-                                if data["topic"] == "realtime:public:draw":
+                                elif data["topic"] == "realtime:public:draw":
                                     if record["sender"] != self.user_id and normalize_date(record["date"]) == normalize_date(self.lookup_date):
                                         with self._draw_lock:
                                             self._draw_queue.append(record)
-                                if data["topic"] == "realtime:public:far":
+                                elif data["topic"] == "realtime:public:far":
                                     self.far_day.start_day=record["start"]
                                     self.far_day.is_far=record["status"]
-                                if data["topic"] == "realtime:public:messages":
+                                else:
                                     sender = record["sender"]
                                     content = record["content"]
                                     timestamp = record["created_at"]
@@ -1417,8 +1378,6 @@ class ChatApp(MDApp):
     def on_start(self):
         global build
 
-        self.send_online_status()
-            
         url = f"{SUPABASE_URL}/rest/v1/version?select=*&date=eq.{datetime.strftime(datetime.now(), '%d/%m/%Y')}&order=build.asc"
         res = requests.get(url, headers=headers)
         if res.status_code == 200:
@@ -1429,20 +1388,14 @@ class ChatApp(MDApp):
 
     def on_pause(self):
         print("App paused")
-        self.send_offline_status()
         self.app_in_foreground = False
         return True
 
     def on_resume(self):
         global message_cache
         print("App resumed")
-        self.send_online_status()
         self.app_in_foreground = True
         message_cache = []
-        return True
-    
-    def on_close(self):
-        self.send_offline_status()
         return True
 
 '''def apply_temp_updates():
