@@ -710,7 +710,7 @@ class ChatApp(MDApp):
             "width": 2,  # scale theo canvas
             "color": list(self.draw_canvas.pen_color),
             "created_at": time.strftime("%H:%M"),
-            "date": datetime.strftime(self.lookup_date, "%d/%m/%Y")
+            "date": normalize_date(self.lookup_date)
         }
 
         def send():
@@ -741,7 +741,7 @@ class ChatApp(MDApp):
 
         self.container.height = paper_height
         self.draw_canvas.width = self.container.width
-        self.draw_canvas.height = dp(100000)
+        self.draw_canvas.height = paper_height
 
     def date_picker_open(self):
         self.menu.dismiss()
@@ -823,6 +823,7 @@ class ChatApp(MDApp):
     def draw_mode(self, *args):
         global draw_mode
         self.menu.dismiss()
+        self.set_tool_pen()
         self.msg_scroll.do_scroll, draw_mode=[True, False] if draw_mode else [False, True]
 
     def show_uid_dialog(self, *args):
