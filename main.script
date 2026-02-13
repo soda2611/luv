@@ -59,13 +59,15 @@ from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.anchorlayout import MDAnchorLayout
 from kivymd.uix.textfield import MDTextField
 from kivymd.uix.label import MDLabel
-from kivymd.uix.button import MDIconButton, MDFillRoundFlatButton
+from kivymd.uix.button import MDIconButton, MDFillRoundFlatButton, MDFillRoundFlatIconButton
 from kivymd.uix.dialog import MDDialog
 from kivymd.uix.menu import MDDropdownMenu
 from kivymd.uix.pickers import MDDatePicker
 from kivymd.uix.scrollview import ScrollView
 from kivymd.uix.card import MDCard
-from kivymd.uix.behaviors import TouchBehavior
+from kivymd.uix.screenmanager import MDScreenManager
+from kivymd.uix.screen import MDScreen
+from kivymd.uix.transition.transition import MDFadeSlideTransition
 from kivy.animation import Animation
 from kivy.clock import Clock
 from kivy.core.window import Window
@@ -539,6 +541,9 @@ class InfiniteDrawBoard(MDAnchorLayout):
 class OverlayContainer(MDAnchorLayout):
     pass
 
+class ToolButton(MDIconButton):
+    tool = StringProperty('')
+
 # --- ChatApp ---
 class ChatApp(MDApp):
     def build(self):
@@ -571,10 +576,13 @@ class ChatApp(MDApp):
             self.user_id = None
             Clock.schedule_once(lambda dt: self.show_uid_dialog())
 
-        # Main layout with improved spacing and styling
         layout = MDBoxLayout(orientation="vertical", padding=[dp(20), dp(10), dp(20), dp(35)], spacing=dp(10), md_bg_color=bg)
+        todo_layout = MDBoxLayout(orientation="vertical", padding=[dp(20), dp(10), dp(20), dp(35)], spacing=dp(10), md_bg_color=bg)
         
-        # Top bar with title
+        #-------------------------------------------------------------
+        #                            Chat                            |
+        #-------------------------------------------------------------
+
         self.top_bar = MDBoxLayout(size_hint=(1, None), height=dp(50), padding=dp(5), spacing=dp(10))
         self.top_icon = MDFillRoundFlatButton(
             text=format_text_with_fonts("\U0001F496 ngha và hmn", True),
@@ -597,7 +605,6 @@ class ChatApp(MDApp):
         self.top_bar.add_widget(self.top_label)
         self.top_bar.add_widget(self.uid_button)
         
-        # Message scroll area with better styling
         self.msg_scroll = ScrollView(do_scroll_x=False, size_hint=(1, 1))
         self.msg_list = MDBoxLayout(orientation="vertical", size_hint=(1, None), spacing=dp(10), padding=[0, dp(10), 0, dp(10)])
         self.container = OverlayContainer(size_hint=(1, None), anchor_y='top')
@@ -612,7 +619,6 @@ class ChatApp(MDApp):
         self.container.add_widget(self.draw_canvas)
         self.msg_scroll.add_widget(self.container)
         
-        # Input card with rounded design
         self.input_card = MDCard(
             orientation="vertical",
             size_hint=(1, None),
@@ -624,7 +630,6 @@ class ChatApp(MDApp):
             elevation=0
         )
         
-        # Text input layout
         self.text_input = MDBoxLayout(size_hint=(1, None), height=dp(50), spacing=dp(5))
         self.far_day = FarDay(markup=True, size_hint=(1, None), height=dp(10), halign="center")
         self.text_input.input = LimitedTextField(
@@ -654,13 +659,11 @@ class ChatApp(MDApp):
             pos_hint={"right": 1, "bottom": 0},
             on_release=self.send_msg
         )
-        
-        # Assemble input components
+
         self.text_input.add_widget(self.text_input.input)
         self.text_input.add_widget(self.text_input.button)
         self.input_card.add_widget(self.text_input)
         
-        # Bind text changes for button enable/disable
         self.far_day.bind(is_far=self.status)
         self.far_day.bind(texture_size=self.far_day.setter("texture_size"))
         self.far_day.bind(texture_size=self.far_day.setter("size"))
@@ -672,7 +675,6 @@ class ChatApp(MDApp):
         self.noti.add_widget(self.noti.label)
         self.noti.add_widget(self.noti.button)
 
-        # Assemble main layout
         layout.add_widget(self.top_bar)
         layout.add_widget(MDBoxLayout(size_hint=(1, None), md_bg_color=btn, height=dp(2), pos_hint={"center_x": 0.5}))  # Spacer
         layout.add_widget(self.noti)    
@@ -680,12 +682,131 @@ class ChatApp(MDApp):
         layout.add_widget(self.input_card)
         layout.add_widget(self.far_day)
 
+        #-------------------------------------------------------------
+        #                           To-Do                            |
+        #-------------------------------------------------------------
+
+        self.todo_top_bar = MDBoxLayout(size_hint=(1, None), height=dp(50), padding=dp(5), spacing=dp(10))
+        self.todo_top_icon = MDFillRoundFlatButton(
+            text=format_text_with_fonts("\U0001F496 ngha và hmn", True),
+            theme_text_color="Custom",
+            text_color=primarycolor,
+            md_bg_color=bg,
+        )
+        self.todo_top_label = MDFillRoundFlatButton(
+            text="\u2600 <3 \u2B50",
+            theme_text_color="Custom",
+            line_color=btn,
+            md_bg_color=boxbg,
+            text_color=primarycolor,
+            font_name="resources/fonts/seguiemj.ttf",
+            on_release=self.change_text
+        )
+        self.todo_top_bar.add_widget(self.todo_top_icon)
+        self.todo_top_bar.add_widget(MDBoxLayout(size_hint=(1, 1)))
+        self.todo_top_bar.add_widget(self.todo_top_label)
+
+        self.todo_scroll = ScrollView(size_hint=(1, 1))
+        self.todo_board = InfiniteDrawBoard()
+        self.todo_board.size_hint=(None, None)
+        self.todo_board.height=dp(100000)
+        self.todo_board.width=dp(100000)
+        self.todo_scroll.add_widget(self.todo_board)
+
+        self.todo_toolbar = MDCard(
+            md_bg_color=btn,
+            size_hint=(None, None),
+            height=dp(60),
+            padding=dp(5),
+            radius=dp(30),
+            pos_hint={"center_x": 0.5}
+        )
+
+        self.todo_toolbar.bind(minimum_width=self.todo_toolbar.setter("width"))
+
+        self.todo_pen_button = ToolButton(
+            icon="pencil",
+            theme_icon_color="Custom",
+            md_bg_color=boxbg,
+            icon_color='black',
+            size_hint=(None, None),
+            pos_hint={"center_y": 0.5},
+            on_release=self.switch_todo_tool,
+            tool='pen'
+        )
+        self.todo_eraser_button = ToolButton(
+            icon="eraser",
+            theme_icon_color="Custom",
+            md_bg_color=btn,
+            icon_color='white',
+            size_hint=(None, None),
+            pos_hint={"center_y": 0.5},
+            on_release=self.switch_todo_tool,
+            tool='eraser'
+        )
+        self.todo_font_size_button = ToolButton(
+            icon="format-size",
+            theme_icon_color="Custom",
+            md_bg_color=btn,
+            icon_color='white',
+            size_hint=(None, None),
+            pos_hint={"center_y": 0.5},
+            on_release=self.switch_todo_tool,
+            tool='format-size'
+        )
+        self.todo_align_button = ToolButton(
+            icon="format-align-left",
+            theme_icon_color="Custom",
+            md_bg_color=btn,
+            icon_color='white',
+            size_hint=(None, None),
+            pos_hint={"center_y": 0.5},
+            on_release=self.switch_todo_tool,
+            tool='align'
+        )
+        self.todo_more_button = MDIconButton(
+            icon="dots-horizontal",
+            theme_icon_color="Custom",
+            md_bg_color=btn,
+            icon_color='white',
+            size_hint=(None, None),
+            pos_hint={"center_y": 0.5},
+        )
+
+        self.last_todo_tool=self.todo_pen_button
+
+        self.todo_toolbar.add_widget(self.todo_pen_button)
+        self.todo_toolbar.add_widget(self.todo_eraser_button)
+        self.todo_toolbar.add_widget(self.todo_align_button)
+        self.todo_toolbar.add_widget(self.todo_font_size_button)
+        self.todo_toolbar.add_widget(self.todo_more_button)
+
+        todo_layout.add_widget(self.todo_top_bar)
+        todo_layout.add_widget(MDBoxLayout(size_hint=(1, None), md_bg_color=btn, height=dp(2), pos_hint={"center_x": 0.5}))  # Spacer
+        todo_layout.add_widget(self.todo_scroll)
+        todo_layout.add_widget(self.todo_toolbar)
+
         Clock.schedule_once(lambda dt: self.sync_overlay_height(), 0)
         Clock.schedule_once(lambda dt: self.load_messages(), 0)
         Clock.schedule_interval(self._flush_draw_queue, 1 / 60)
         self.listen_realtime()
 
-        return layout
+        sm = MDScreenManager(transition=MDFadeSlideTransition())
+        todo = MDScreen(name="to-do")
+        chat = MDScreen(name="chat")
+        chat.add_widget(layout)
+        todo.add_widget(todo_layout)
+        sm.add_widget(todo)
+        sm.add_widget(chat)
+
+        return sm
+    
+    def switch_todo_tool(self, instance):
+        self.last_todo_tool.icon_color='white'
+        self.last_todo_tool.md_bg_color=btn
+        instance.icon_color='black'
+        instance.md_bg_color=boxbg
+        self.last_todo_tool=instance
     
     def stroke_to_norm_points(self, stroke):
         cw, ch = self.draw_canvas.width, self.draw_canvas.height
@@ -919,7 +1040,7 @@ class ChatApp(MDApp):
             self.show_uid_dialog()
             return
         
-        if self.lookup and self.lookup_date != datetime.strftime(datetime.now(), "%d/%m/%Y"):
+        if self.lookup and normalize_date(self.lookup_date) != datetime.strftime(datetime.now(), "%d/%m/%Y"):
             self.lookup=False
             self.msg_list.clear_widgets()
             self.load_messages()
@@ -956,8 +1077,8 @@ class ChatApp(MDApp):
             if rows:
                 for row in rows:
                     self.display_message(row['sender'], row['content'], row['created_at'], row['date'], row['id'])
-            elif datetime.strptime(date_str, "%d/%m/%Y") < datetime.now() and self.lookup_date != datetime.strftime(datetime.now(), "%d/%m/%Y"): self.display_message('ngha' if self.user_id=='hmn' else 'hmn', 'Không có tin nhắn nào cho ngày này hết ;-;', '00:00', date_str, msg_id='0000')
-            elif datetime.strptime(date_str, "%d/%m/%Y") > datetime.now() or self.lookup_date == datetime.strftime(datetime.now(), "%d/%m/%Y"): self.display_message('ngha' if self.user_id=='hmn' else 'hmn', 'Mong chờ những lời iu thương của {} qaaa :3'.format('hmn' if self.user_id=='hmn' else 'ngha'), '00:00', date_str, msg_id='0000')
+            elif datetime.strptime(date_str, "%d/%m/%Y") < datetime.now() and normalize_date(self.lookup_date) != datetime.strftime(datetime.now(), "%d/%m/%Y"): self.display_message('ngha' if self.user_id=='hmn' else 'hmn', 'Không có tin nhắn nào cho ngày này hết ;-;', '00:00', date_str, msg_id='0000')
+            elif datetime.strptime(date_str, "%d/%m/%Y") > datetime.now() or normalize_date(self.lookup_date) == datetime.strftime(datetime.now(), "%d/%m/%Y"): self.display_message('ngha' if self.user_id=='hmn' else 'hmn', 'Mong chờ những lời iu thương của {} qaaa :3'.format('hmn' if self.user_id=='hmn' else 'ngha'), '00:00', date_str, msg_id='0000')
             Clock.schedule_once(self.scroll_to_bottom)
         
         self._last_msg_height = self.msg_list.height
@@ -1219,15 +1340,13 @@ class ChatApp(MDApp):
                         ping_interval=20,
                         ping_timeout=20
                     ) as ws:
-
                         # Join channel
-                        join_msg = {
+                        await ws.send(json.dumps({
                             "topic": "realtime:public:messages",
                             "event": "phx_join",
                             "payload": {},
                             "ref": 1
-                        }
-                        await ws.send(json.dumps(join_msg))
+                        }))
 
                         await ws.send(json.dumps({
                             "topic": "realtime:public:reaction",
@@ -1255,6 +1374,13 @@ class ChatApp(MDApp):
                             "event": "phx_join",
                             "payload": {},
                             "ref": 5
+                        }))
+
+                        await ws.send(json.dumps({
+                            "topic": "realtime:public:to-do",
+                            "event": "phx_join",
+                            "payload": {},
+                            "ref": 6
                         }))
 
                         while True:
@@ -1299,7 +1425,7 @@ class ChatApp(MDApp):
                                     date = record["date"]
                                     msg_id = record["id"]
 
-                                    if self.lookup and self.lookup_date != datetime.strftime(datetime.now(), "%d/%m/%Y"):
+                                    if self.lookup and normalize_date(self.lookup_date) != datetime.strftime(datetime.now(), "%d/%m/%Y"):
                                         self.noti.button.disabled=False
                                         expand_vertical(self.noti, dp(40))
                                     else:
