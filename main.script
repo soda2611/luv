@@ -42,7 +42,6 @@ EMOJI_LIKE = [
 REF_W = 1080
 REF_H = 1920
 
-
 import asyncio
 import os
 import requests
@@ -87,6 +86,7 @@ ssl_context.verify_mode = ssl.CERT_NONE
 message_cache = []
 msg_id_list={}
 draw_mode=False
+todo_draw_mode=False
 if not os.path.exists("build.txt"): download_file('luv', 'build.txt', 'build.txt')
 with open('build.txt', encoding="utf-8") as fi: build=fi.read()
 
@@ -553,8 +553,10 @@ class Whiteboard(MDAnchorLayout):
         self.pen_color = (0, 0, 0, 1)
         self.pen_width = 2.5
         self.eraser_radius = 18
+        self.md_bg_color='white'
 
         self.on_stroke_finished = None
+        self.on_stroke_deleted = None
         self.bind(size=self._apply_flip, pos=self._apply_flip)
         Clock.schedule_once(self._apply_flip, 0)
         
@@ -575,6 +577,8 @@ class Whiteboard(MDAnchorLayout):
     # --------------------------------------------------
 
     def on_touch_down(self, touch):
+        if not todo_draw_mode: return False
+
         if not self.collide_point(*touch.pos):
             return False
 
@@ -592,6 +596,8 @@ class Whiteboard(MDAnchorLayout):
         return False
 
     def on_touch_move(self, touch):
+        if not todo_draw_mode: return False
+        
         if not self.collide_point(*touch.pos):
             return False
 
@@ -609,6 +615,8 @@ class Whiteboard(MDAnchorLayout):
         return False
 
     def on_touch_up(self, touch):
+        if not todo_draw_mode: return False
+
         if self.tool == "pen" and self.current_stroke:
             if self.on_stroke_finished:
                 self.on_stroke_finished(self.current_stroke)
@@ -930,6 +938,8 @@ class ChatApp(MDApp):
         self.todo_board.size_hint=(None, None)
         self.todo_board.height=dp(100000)
         self.todo_board.width=dp(100000)
+        self.draw_canvas.on_stroke_finished = self._on_local_todo_stroke_finished
+        self.draw_canvas.on_stroke_deleted = self._on_local_todo_stroke_deleted
         self.todo_scroll.add_widget(self.todo_board)
 
         self.todo_toolbar = MDCard(
@@ -962,7 +972,7 @@ class ChatApp(MDApp):
 
         self.todo_toolbar.bind(minimum_width=self.todo_toolbar.setter("width"))
         self.todo_toolbar_button_overlay.bind(minimum_width=self.todo_toolbar_button_overlay.setter("width"))
-        self.todo_toolbar_button_overlay.bind(width=self.set_ttbgo_width)
+        Window.bind(width=self.set_ttbgo_width)
 
         self.todo_pen_button = ToolButton(
             icon="pencil",
@@ -973,6 +983,7 @@ class ChatApp(MDApp):
             pos_hint={"center_y": 0.5},
             on_release=self.switch_todo_tool,
             ripple_color=boxbg,
+            tool='pen'
         )
         self.todo_eraser_button = ToolButton(
             icon="eraser",
@@ -984,6 +995,16 @@ class ChatApp(MDApp):
             on_release=self.switch_todo_tool,
             ripple_color=boxbg,
             tool='eraser'
+        )
+        self.todo_scroll_lock_button = ToolButton(
+            icon="lock",
+            theme_icon_color="Custom",
+            md_bg_color=[0, 0, 0, 0],
+            icon_color='white',
+            size_hint=(None, None),
+            pos_hint={"center_y": 0.5},
+            ripple_color=boxbg,
+            on_release=self.enable_todo
         )
         self.todo_font_size_button = ToolButton(
             icon="format-size",
@@ -1022,6 +1043,7 @@ class ChatApp(MDApp):
         self.todo_toolbar_background_overlay.add_widget(self.todo_toolbar_button_overlay)
         self.todo_toolbar_button_overlay.add_widget(self.todo_pen_button)
         self.todo_toolbar_button_overlay.add_widget(self.todo_eraser_button)
+        self.todo_toolbar_button_overlay.add_widget(self.todo_scroll_lock_button)
         self.todo_toolbar_button_overlay.add_widget(self.todo_align_button)
         self.todo_toolbar_button_overlay.add_widget(self.todo_font_size_button)
         self.todo_toolbar_button_overlay.add_widget(self.todo_more_button)
@@ -1047,15 +1069,22 @@ class ChatApp(MDApp):
 
         return self.sm
     
+    def enable_todo(self, instance):
+        global todo_draw_mode
+        instance.icon = "lock-open" if not todo_draw_mode else "lock"
+        self.todo_scroll.do_scroll, todo_draw_mode=[True, False] if todo_draw_mode else [False, True]
+    
     def switch_todo_tool(self, instance):
         self.last_todo_tool.icon_color='white'
         instance.icon_color='black'
         self.todo_toolbar_button_background.pos_hint={"center_y": 0.5}
         Animation(x=instance.x, duration=0.3, transition='out_quart').start(self.todo_toolbar_button_background)
         self.last_todo_tool=instance
+        self.todo_board.tool=instance.tool
 
     def set_ttbgo_width(self, *args):
         self.todo_toolbar_background_overlay.width=self.todo_toolbar_button_overlay.width
+        self.todo_toolbar_button_background.x=self.last_todo_tool.x
     
     def stroke_to_norm_points(self, stroke):
         cw, ch = self.draw_canvas.width, self.draw_canvas.height
@@ -1118,6 +1147,42 @@ class ChatApp(MDApp):
 
         threading.Thread(target=send, daemon=True).start()
     
+    def _on_local_todo_stroke_deleted(self, stroke_id):
+        def send():
+            url = f"{SUPABASE_URL}/rest/v1/draw?id=eq.{norm_uuid_hyphen(stroke_id)}"
+            requests.delete(url, headers=headers)
+
+        threading.Thread(target=send, daemon=True).start()
+
+    def _on_local_todo_stroke_finished(self, stroke):
+        points = []
+        cw, ch = self.draw_canvas.width, self.draw_canvas.height
+
+        for x, y in stroke["points"]:
+            nx = x / cw
+            ny = y / ch
+            points.append((nx, ny))
+
+        data = {
+            "id": norm_uuid_hyphen(stroke["id"]),
+            "sender": self.user_id,
+            "points": points,
+            "width": 2,  # scale theo canvas
+            "color": list(self.draw_canvas.pen_color),
+            "created_at": time.strftime("%H:%M"),
+            "date": normalize_date(self.lookup_date),
+            "address": "to_do"
+        }
+
+        def send():
+            url = f"{SUPABASE_URL}/rest/v1/draw"
+            res = requests.post(url, headers=headers, json=data)
+            if res.status_code not in (200, 201):
+                print("DRAW INSERT FAIL:", res.text)
+
+        threading.Thread(target=send, daemon=True).start()
+  
+
     def _debounced_reload(self, date_str, delay=0.25):
         if self._reload_timer:
             try: self._reload_timer.cancel()
@@ -1352,6 +1417,7 @@ class ChatApp(MDApp):
             f"{SUPABASE_URL}/rest/v1/draw"
             f"?select=id,points,width,color"
             f"&date=eq.{date_str}"
+            f"&address=eq.chat"
             f"&order=created_at.asc"
         )
         res = requests.get(url, headers=headers)
@@ -1376,6 +1442,38 @@ class ChatApp(MDApp):
                 "width": 2,
                 "color": tuple(row["color"]),
             })
+
+    def load_todo_strokes(self, date_str):
+        url = (
+            f"{SUPABASE_URL}/rest/v1/draw"
+            f"?select=id,points,width,color"
+            f"&date=eq.{date_str}"
+            f"&address=eq.to_do"
+            f"&order=created_at.asc"
+        )
+        res = requests.get(url, headers=headers)
+        if res.status_code != 200:
+            print("LOAD STROKES FAIL:", res.text)
+            return
+
+        self.draw_canvas.clear_all()
+
+        cw, ch = self.draw_canvas.width, self.draw_canvas.height
+
+        for row in res.json():
+            pts = []
+            for nx, ny in row["points"]:
+                x = nx * cw
+                y = ch - (ny * ch)
+                pts.append((x, y))
+
+            self.draw_canvas.draw_remote_stroke({
+                "stroke_id": norm_uuid_hyphen(row["id"]),
+                "points": pts,
+                "width": 2,
+                "color": tuple(row["color"]),
+            })
+
 
     def load_far(self, *args):
         url = f"{SUPABASE_URL}/rest/v1/far?select=*&order=start.asc"
