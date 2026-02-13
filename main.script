@@ -73,7 +73,6 @@ from kivy.clock import Clock
 from kivy.core.window import Window
 from kivy.metrics import dp
 from kivy.utils import platform
-from kivy.uix.scatter import Scatter
 from kivy.properties import *
 from kivy.graphics import Line, PushMatrix, PopMatrix, Translate, Color, InstructionGroup, Rectangle, Scale
 from plyer import notification
@@ -934,15 +933,13 @@ class ChatApp(MDApp):
         self.todo_top_bar.add_widget(self.todo_top_label)
 
         self.todo_scroll = ScrollView(size_hint=(1, 1))
-        self.todo_scatter = Scatter(size_hint=(None, None), height=dp(100000), width=dp(100000))
         self.todo_board = Whiteboard()
         self.todo_board.size_hint=(None, None)
         self.todo_board.height=dp(100000)
         self.todo_board.width=dp(100000)
         self.draw_canvas.on_stroke_finished = self._on_local_todo_stroke_finished
         self.draw_canvas.on_stroke_deleted = self._on_local_todo_stroke_deleted
-        self.todo_scroll.add_widget(self.todo_scatter)
-        self.todo_scatter.add_widget(self.todo_board)
+        self.todo_scroll.add_widget(self.todo_board)
 
         self.todo_toolbar = MDCard(
             md_bg_color=btn,
