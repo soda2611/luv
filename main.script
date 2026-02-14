@@ -788,6 +788,8 @@ class ChatApp(MDApp):
         self._reload_timer = None
         self._draw_queue = []
         self._draw_lock = threading.Lock()
+        self._todo_draw_queue = []
+        self._todo_draw_lock = threading.Lock()
         self.deleted_strokes = set()
 
         if os.path.exists("uid.txt"):
@@ -937,8 +939,6 @@ class ChatApp(MDApp):
         self.todo_board.size_hint=(None, None)
         self.todo_board.height=dp(100000)
         self.todo_board.width=dp(100000)
-        self.draw_canvas.on_stroke_finished = self._on_local_todo_stroke_finished
-        self.draw_canvas.on_stroke_deleted = self._on_local_todo_stroke_deleted
         self.todo_scroll.add_widget(self.todo_board)
 
         self.todo_toolbar = MDCard(
@@ -1056,6 +1056,7 @@ class ChatApp(MDApp):
         Clock.schedule_once(lambda dt: self.sync_overlay_height(), 0)
         Clock.schedule_once(lambda dt: self.load_messages(), 0)
         Clock.schedule_interval(self._flush_draw_queue, 1 / 60)
+        Clock.schedule_interval(self._flush_todo_draw_queue, 1 / 60)
         self.listen_realtime()
 
         self.sm = MDScreenManager(transition=MDFadeSlideTransition())
@@ -1145,42 +1146,6 @@ class ChatApp(MDApp):
                 print("DRAW INSERT FAIL:", res.text)
 
         threading.Thread(target=send, daemon=True).start()
-    
-    def _on_local_todo_stroke_deleted(self, stroke_id):
-        def send():
-            url = f"{SUPABASE_URL}/rest/v1/draw?id=eq.{norm_uuid_hyphen(stroke_id)}"
-            requests.delete(url, headers=headers)
-
-        threading.Thread(target=send, daemon=True).start()
-
-    def _on_local_todo_stroke_finished(self, stroke):
-        points = []
-        cw, ch = self.draw_canvas.width, self.draw_canvas.height
-
-        for x, y in stroke["points"]:
-            nx = x / cw
-            ny = y / ch
-            points.append((nx, ny))
-
-        data = {
-            "id": norm_uuid_hyphen(stroke["id"]),
-            "sender": self.user_id,
-            "points": points,
-            "width": 2,  # scale theo canvas
-            "color": list(self.draw_canvas.pen_color),
-            "created_at": time.strftime("%H:%M"),
-            "date": normalize_date(self.lookup_date),
-            "address": "to_do"
-        }
-
-        def send():
-            url = f"{SUPABASE_URL}/rest/v1/draw"
-            res = requests.post(url, headers=headers, json=data)
-            if res.status_code not in (200, 201):
-                print("DRAW INSERT FAIL:", res.text)
-
-        threading.Thread(target=send, daemon=True).start()
-  
 
     def _debounced_reload(self, date_str, delay=0.25):
         if self._reload_timer:
@@ -1291,6 +1256,7 @@ class ChatApp(MDApp):
     def open_todo_board(self, *args):
         self.menu.dismiss()
         self.sm.current='to-do'
+        Clock.schedule_once(self.load_todo_strokes)
 
     def set_tool_pen(self, *args):
         try: self.menu.dismiss()
@@ -1442,11 +1408,10 @@ class ChatApp(MDApp):
                 "color": tuple(row["color"]),
             })
 
-    def load_todo_strokes(self, date_str):
+    def load_todo_strokes(self, *args):
         url = (
             f"{SUPABASE_URL}/rest/v1/draw"
             f"?select=id,points,width,color"
-            f"&date=eq.{date_str}"
             f"&address=eq.to_do"
             f"&order=created_at.asc"
         )
@@ -1455,9 +1420,9 @@ class ChatApp(MDApp):
             print("LOAD STROKES FAIL:", res.text)
             return
 
-        self.draw_canvas.clear_all()
+        self.todo_board.clear_all()
 
-        cw, ch = self.draw_canvas.width, self.draw_canvas.height
+        cw, ch = self.todo_board.width, self.todo_board.height
 
         for row in res.json():
             pts = []
@@ -1466,13 +1431,12 @@ class ChatApp(MDApp):
                 y = ch - (ny * ch)
                 pts.append((x, y))
 
-            self.draw_canvas.draw_remote_stroke({
+            self.todo_board.draw_remote_stroke({
                 "stroke_id": norm_uuid_hyphen(row["id"]),
                 "points": pts,
                 "width": 2,
                 "color": tuple(row["color"]),
             })
-
 
     def load_far(self, *args):
         url = f"{SUPABASE_URL}/rest/v1/far?select=*&order=start.asc"
@@ -1674,6 +1638,30 @@ class ChatApp(MDApp):
             if not pts:
                 continue
             self.draw_canvas.draw_remote_stroke({
+                "stroke_id": norm_uuid_hyphen(r["id"]),
+                "points": pts,
+                "width": 2,
+                "color": tuple(r.get("color", (0,0,0,1)))
+            })
+
+    def _flush_todo_draw_queue(self, dt):
+        if not self._todo_draw_queue:
+            return
+
+        with self._todo_draw_lock:
+            batch = self._todo_draw_queue[:]
+            self._todo_draw_queue.clear()
+        
+        for r in batch:
+            pts = []
+            for nx, ny in r.get("points", []):
+                cw, ch = self.todo_board.width, self.todo_board.height
+                x = nx * cw
+                y = ch - (ny * ch)
+                pts.append((x, y))
+            if not pts:
+                continue
+            self.todo_board.draw_remote_stroke({
                 "stroke_id": norm_uuid_hyphen(r["id"]),
                 "points": pts,
                 "width": 2,
