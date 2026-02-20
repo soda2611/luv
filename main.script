@@ -332,7 +332,7 @@ class DrawCanvas(MDAnchorLayout):
 
         self.pen_color = (0, 0, 0, 1)
         self.pen_width = 2.5
-        self.eraser_radius = 18
+        self.eraser_radius = 2.5
 
         self.on_stroke_finished = None
         self.on_stroke_deleted = None
@@ -1293,17 +1293,6 @@ class ChatApp(MDApp):
         except: pass
         self.draw_canvas.tool = "eraser"
 
-    def eraser_size_up(self, *args):
-        try: self.menu.dismiss()
-        except: pass
-        self.draw_canvas.eraser_radius = min(100, self.draw_canvas.eraser_radius + 5)
-
-    def eraser_size_down(self, *args):
-        try: self.menu.dismiss()
-        except: pass
-        # Giới hạn tối thiểu 5 để tránh xóa “như kim”
-        self.draw_canvas.eraser_radius = max(5, self.draw_canvas.eraser_radius - 5)
-
     def draw_mode(self, *args):
         global draw_mode
         self.menu.dismiss()
@@ -1348,7 +1337,8 @@ class ChatApp(MDApp):
                                     size_hint=(1, None),
                                     pos_hint={'center_y': 0.5},
                                     height=dp(30),
-                                    multiline=False)
+                                    multiline=False,
+                                    on_text_validate=self.create_whiteboard)
         self.dialog = MDDialog(
             title="Nhập tên whiteboard",
             type="custom",
@@ -1405,8 +1395,8 @@ class ChatApp(MDApp):
             self.show_uid_dialog()
             return
         
-        if hasattr(self.todo_browse.children[0], 'text'):
-            if self.todo_browse.children[0].text=='Chưa có whiteboard nào được tạo hết ;-;': self.todo_browse.remove_widget(self.todo_browse.children[0])
+        if hasattr(self.todo_scroll.children[0], 'text'):
+            if self.todo_scroll.children[0].text=='Chưa có whiteboard nào được tạo hết ;-;': self.todo_scroll.remove_widget(self.todo_scroll.children[0])
 
         name_ = self.whiteboard_input.text
         if name_:
@@ -1414,6 +1404,16 @@ class ChatApp(MDApp):
             data = {"whiteboard_name": name_, "created_at": time.strftime("%d/%m/%Y")}
             requests.post(url, headers=headers, json=data)
             self.dialog.dismiss()
+
+    def delete_whiteboard(self, file_id, name):
+        def send():
+            url = f"{SUPABASE_URL}/rest/v1/todo?id=eq.{norm_uuid_hyphen(file_id)}"
+            requests.delete(url, headers=headers)
+
+            url = f"{SUPABASE_URL}/rest/v1/draw?&file=eq.{name}"
+            requests.delete(url, headers=headers)
+
+        threading.Thread(target=send, daemon=True).start()
 
     def load_messages(self, instance=None, date_str=datetime.strftime(datetime.now(), '%d/%m/%Y'), data_range=None):
         self.lookup_date=date_str
@@ -1456,7 +1456,9 @@ class ChatApp(MDApp):
             if rows:
                 for row in rows[-10:]:
                     self.display_file(row['whiteboard_name'], row['created_at'], row['id'])
-            else: self.todo_browse.add_widget(MDLabel(text="Chưa có whiteboard nào được tạo hết ;-;", halign='center', valign='center', size_hint=(1, 1)))
+            else:
+                self.todo_scroll.clear_widgets()
+                self.todo_scroll.add_widget(MDLabel(text="Chưa có whiteboard nào được tạo hết ;-;", halign='center', valign='center', size_hint=(1, 1)))
         
         Clock.schedule_once(self.load_far)
 
@@ -1667,7 +1669,9 @@ class ChatApp(MDApp):
             font_size=dp(14),
             markup=True
         )
+        file_delete_button=MDIconButton(icon="delete", theme_icon_color="Custom", icon_color="red", pos_hint={"center_y": 0.5}, on_release=lambda dt: self.delete_whiteboard(file_id, file))
         header_layout.add_widget(file_label)
+        header_layout.add_widget(file_delete_button)
         
         file_card.add_widget(header_layout)
         file_card.bind(minimum_height=file_card.setter('height'))
@@ -1879,7 +1883,9 @@ class ChatApp(MDApp):
                                             lambda dt, sid=stroke_id: self.todo_board.erase_remote_stroke(sid)
                                         )
                                     elif data.get("topic") == "realtime:public:todo":
-                                        if len(self.todo_browse.children)==1: Clock.schedule_once(lambda dt: self.todo_browse.add_widget(MDLabel(text="Chưa có whiteboard nào được tạo hết ;-;", halign='center', valign='center', size_hint=(1, 1))))
+                                        if len(self.todo_browse.children)==1:
+                                            Clock.schedule_once(lambda dt: self.todo_scroll.clear_widgets())
+                                            Clock.schedule_once(lambda dt: self.todo_scroll.add_widget(MDLabel(text="Chưa có whiteboard nào được tạo hết ;-;", halign='center', valign='center', size_hint=(1, 1))))
                                         Clock.schedule_once(lambda dt: self.todo_browse.remove_widget(file_id_list[record["id"]]))
                                 continue
 
@@ -1903,6 +1909,8 @@ class ChatApp(MDApp):
                                     self.far_day.start_day=record["start"]
                                     self.far_day.is_far=record["status"]
                                 elif data["topic"] == "realtime:public:todo":
+                                    Clock.schedule_once(lambda dt: self.todo_scroll.clear_widgets())
+                                    Clock.schedule_once(lambda dt: self.todo_scroll.add_widget(self.todo_browse))
                                     Clock.schedule_once(lambda dt: self.display_file(record["whiteboard_name"], record["created_at"], record["id"]))
                                 else:
                                     sender = record["sender"]
