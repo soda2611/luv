@@ -1244,19 +1244,7 @@ class ChatApp(MDApp):
             md_bg_color=bg,
             on_release=self.load_todo_list
         )
-        self.todo_top_label = MDFillRoundFlatButton(
-            text="\u2600 <3 \u2B50",
-            theme_text_color="Custom",
-            line_color=btn,
-            md_bg_color=boxbg,
-            text_color=primarycolor,
-            font_name="resources/fonts/seguiemj.ttf",
-            on_release=self.change_text
-        )
         self.todo_top_bar.add_widget(self.todo_top_icon)
-        self.todo_top_bar.add_widget(MDBoxLayout(size_hint=(1, 1)))
-        self.todo_top_bar.add_widget(self.todo_top_label)
-
 
         self.todo_new_whiteboard_button = MDFillRoundFlatIconButton(
             icon="plus",
