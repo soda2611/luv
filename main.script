@@ -1035,7 +1035,6 @@ class ChatApp(MDApp):
         self.todo_toolbar_button_overlay.add_widget(self.todo_pen_button)
         self.todo_toolbar_button_overlay.add_widget(self.todo_eraser_button)
         self.todo_toolbar_button_overlay.add_widget(self.todo_scroll_lock_button)
-        self.todo_toolbar_button_overlay.add_widget(self.todo_more_button)
 
         todo_layout.add_widget(self.todo_top_bar)
         todo_layout.add_widget(MDBoxLayout(size_hint=(1, None), md_bg_color=btn, height=dp(2), pos_hint={"center_x": 0.5}))  # Spacer
