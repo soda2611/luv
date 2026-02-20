@@ -308,6 +308,335 @@ class FarDay(MDLabel):
     is_far = BooleanProperty(False)
     start_day = StringProperty('01/01/0001')
 
+class DraggableResizableWidget(MDCard):
+    """Widget có thể kéo và thay đổi kích thước"""
+    widget_id = StringProperty('')
+    is_locked = BooleanProperty(False)
+    
+    def __init__(self, widget_id, **kwargs):
+        super().__init__(**kwargs)
+        self.widget_id = widget_id
+        self.orientation = "vertical"
+        self.size_hint = (None, None)
+        self.size = (dp(200), dp(150))
+        self.md_bg_color = boxbg
+        self.padding = dp(5)
+        self.spacing = dp(5)
+        self.radius = [dp(10)]
+        self.elevation = 2
+        
+        # Resize handle
+        self.resize_active = False
+        self.resize_start_pos = (0, 0)
+        self.resize_start_size = (0, 0)
+        self.resize_start_pos_widget = (0, 0)
+        self.active_handle = None  # 'tl', 'tr', 'bl', 'br', 't', 'b', 'l', 'r', 'header'
+        
+        # Double-click tracking
+        self.last_touch_time = 0
+        self.is_editing = False
+        
+        # Header
+        header = MDBoxLayout(size_hint=(1, None), height=dp(30), spacing=dp(5))
+        self.title_label = MDLabel(text=f"Widget {widget_id[:8]}", size_hint=(1, None), height=dp(30))
+        self.close_btn = MDIconButton(
+            icon="close",
+            icon_size="20sp",
+            size_hint=(None, None),
+            size=(dp(30), dp(30)),
+            on_release=self.delete_widget
+        )
+        self.lock_btn = MDIconButton(
+            icon="lock",
+            icon_size="20sp",
+            size_hint=(None, None),
+            size=(dp(30), dp(30)),
+            on_release=self.toggle_lock
+        )
+        header.add_widget(self.title_label)
+        header.add_widget(self.lock_btn)
+        header.add_widget(self.close_btn)
+        
+        # Content area
+        self.content_box = MDBoxLayout(size_hint=(1, 1), orientation="vertical", padding=dp(5), spacing=dp(5))
+        self.content_label = MDLabel(
+            text="Double-click để chỉnh sửa",
+            halign="center",
+            valign="center",
+            theme_text_color="Custom",
+            text_color=primarycolor,
+            size_hint=(1, 1)
+        )
+        self.content_box.add_widget(self.content_label)
+        
+        self.add_widget(header)
+        self.add_widget(self.content_box)
+        
+        # Vẽ resize handles ở các góc
+        self.bind(size=self._update_handles, pos=self._update_handles)
+    
+    def _get_handle_at(self, touch_pos):
+        """Kiểm tra touch có ở handle nào không"""
+        handle_size = dp(10)
+        x, y = touch_pos
+        wx, wy = self.pos
+        ww, wh = self.size
+        
+        # Tolerance area
+        tol = dp(15)
+        
+        # Top-left
+        if wx - tol <= x <= wx + handle_size + tol and wy + wh - handle_size - tol <= y <= wy + wh + tol:
+            return 'tl'
+        # Top-right
+        if wx + ww - handle_size - tol <= x <= wx + ww + tol and wy + wh - handle_size - tol <= y <= wy + wh + tol:
+            return 'tr'
+        # Bottom-left
+        if wx - tol <= x <= wx + handle_size + tol and wy - tol <= y <= wy + handle_size + tol:
+            return 'bl'
+        # Bottom-right
+        if wx + ww - handle_size - tol <= x <= wx + ww + tol and wy - tol <= y <= wy + handle_size + tol:
+            return 'br'
+        # Top edge
+        if wx + handle_size <= x <= wx + ww - handle_size and wy + wh - handle_size <= y <= wy + wh + tol:
+            return 't'
+        # Bottom edge
+        if wx + handle_size <= x <= wx + ww - handle_size and wy - tol <= y <= wy + handle_size:
+            return 'b'
+        # Left edge
+        if wx - tol <= x <= wx + handle_size and wy + handle_size <= y <= wy + wh - handle_size:
+            return 'l'
+        # Right edge
+        if wx + ww - handle_size <= x <= wx + ww + tol and wy + handle_size <= y <= wy + wh - handle_size:
+            return 'r'
+        
+        return None
+    
+    def _update_handles(self, *args):
+        """Cập nhật vị trí handles"""
+        self.canvas.after.clear()
+        
+        with self.canvas.after:
+            Color(0.8, 0.8, 0.8, 0.6)
+            handle_size = dp(10)
+            wx, wy = self.pos
+            ww, wh = self.size
+            
+            # 8 handles: corners + edges
+            handles = [
+                (wx, wy + wh - handle_size, handle_size, handle_size),  # tl
+                (wx + ww - handle_size, wy + wh - handle_size, handle_size, handle_size),  # tr
+                (wx, wy, handle_size, handle_size),  # bl
+                (wx + ww - handle_size, wy, handle_size, handle_size),  # br
+                (wx + ww/2 - handle_size/2, wy + wh - handle_size, handle_size, handle_size),  # t
+                (wx + ww/2 - handle_size/2, wy, handle_size, handle_size),  # b
+                (wx, wy + wh/2 - handle_size/2, handle_size, handle_size),  # l
+                (wx + ww - handle_size, wy + wh/2 - handle_size/2, handle_size, handle_size),  # r
+            ]
+            
+            for hx, hy, hw, hh in handles:
+                Line(rectangle=(hx, hy, hw, hh), width=1)
+    
+    def _check_double_click(self, touch_pos):
+        """Kiểm tra double-click"""
+        import time
+        current_time = time.time()
+        
+        if current_time - self.last_touch_time < 0.3:
+            if not hasattr(self, '_last_touch_pos'):
+                self._last_touch_pos = touch_pos
+                return False
+            
+            if (abs(touch_pos[0] - self._last_touch_pos[0]) < dp(30) and 
+                abs(touch_pos[1] - self._last_touch_pos[1]) < dp(30)):
+                self.last_touch_time = 0
+                return True
+        
+        self.last_touch_time = current_time
+        self._last_touch_pos = touch_pos
+        return False
+    
+    def _show_edit_dialog(self):
+        """Hiển thị dialog chỉnh sửa"""
+        from kivymd.uix.dialog import MDDialog
+        
+        edit_input = MDTextField(
+            hint_text="Nhập nội dung mới",
+            text=self.content_label.text,
+            font_name="resources/fonts/segoeui.ttf",
+            line_color_normal=boxbg,
+            line_color_focus=boxbg,
+            hint_text_color=[0.75 - i for i in primarycolor],
+            hint_text_color_focus=primarycolor,
+            text_color_focus=primarycolor,
+            fill_color_normal=boxbg,
+            height=dp(40),
+            multiline=True
+        )
+        
+        def save_content(instance):
+            new_text = edit_input.text.strip()
+            if new_text:
+                self.content_label.text = new_text
+            dialog.dismiss()
+        
+        def cancel_edit(instance):
+            dialog.dismiss()
+        
+        dialog = MDDialog(
+            title="Chỉnh sửa Widget",
+            type="custom",
+            content_cls=edit_input,
+            buttons=[
+                MDFillRoundFlatButton(
+                    text="Lưu",
+                    md_bg_color=btn,
+                    text_color='white',
+                    on_release=save_content
+                ),
+                MDFillRoundFlatButton(
+                    text="Hủy",
+                    md_bg_color=menubg,
+                    text_color='white',
+                    on_release=cancel_edit
+                )
+            ],
+            md_bg_color=boxbg,
+        )
+        dialog.open()
+    
+    def on_touch_down(self, touch):
+        if self.is_locked:
+            return False
+        
+        # Kiểm tra content area double-click
+        if (self.content_box.collide_point(*touch.pos) and 
+            not self._get_handle_at(touch.pos)):
+            
+            if self._check_double_click(touch.pos):
+                self._show_edit_dialog()
+                return True
+        
+        # Kiểm tra resize handle
+        handle = self._get_handle_at(touch.pos)
+        if handle:
+            self.resize_active = True
+            self.active_handle = handle
+            # **Lưu trạng thái ban đầu**
+            self.resize_start_pos = (touch.x, touch.y)
+            self.resize_start_size = self.size
+            self.resize_start_pos_widget = self.pos
+            return True
+        
+        # Kiểm tra header (drag)
+        if self.children[0].collide_point(*touch.pos):
+            touch.grab(self)
+            self.active_handle = 'header'
+            return True
+        
+        return super().on_touch_down(touch)
+
+    def on_touch_move(self, touch):
+        if self.is_locked:
+            return False
+        
+        # Drag widget
+        if touch.grab_current is self and self.active_handle == 'header':
+            self.pos = (self.pos[0] + touch.dx, self.pos[1] + touch.dy)
+            return True
+        
+        # Resize widget
+        if self.resize_active and self.active_handle:
+            wx, wy = self.resize_start_pos_widget
+            ww, wh = self.resize_start_size
+            
+            # **Tính delta từ điểm bắt đầu**
+            start_x, start_y = self.resize_start_pos
+            dx = touch.x - start_x
+            dy = touch.y - start_y
+            
+            new_w, new_h = ww, wh
+            new_x, new_y = wx, wy
+            
+            handle = self.active_handle
+            
+            # **Các handle ở góc trên**
+            if handle == 'tr':  # Top-right - giữ left & bottom
+                new_w = max(dp(100), ww + dx)
+                new_h = max(dp(80), wh + dy)
+                new_y = wy - dy
+                # x không thay đổi (giữ left)
+                
+            elif handle == 'tl':  # Top-left - giữ right & bottom
+                new_w = max(dp(100), ww - dx)
+                new_h = max(dp(80), wh + dy)
+                new_x = wx + dx
+                new_y = wy - dy
+                
+            # **Các handle ở góc dưới**
+            elif handle == 'br':  # Bottom-right - giữ left & top
+                new_w = max(dp(100), ww + dx)
+                new_h = max(dp(80), wh - dy)
+                # x, y không thay đổi (giữ left & top)
+                
+            elif handle == 'bl':  # Bottom-left - giữ right & top
+                new_w = max(dp(100), ww - dx)
+                new_h = max(dp(80), wh - dy)
+                new_x = wx + dx
+                # y không thay đổi (giữ top)
+                
+            # **Các handle ở cạnh**
+            elif handle == 't':  # Top edge - giữ bottom & width
+                new_h = max(dp(80), wh + dy)
+                new_y = wy - dy
+                # x, w không thay đổi
+                
+            elif handle == 'b':  # Bottom edge - giữ top & width
+                new_h = max(dp(80), wh - dy)
+                # x, y, w không thay đổi
+                
+            elif handle == 'l':  # Left edge - giữ right & height
+                new_w = max(dp(100), ww - dx)
+                new_x = wx + dx
+                # y, h không thay đổi
+                
+            elif handle == 'r':  # Right edge - giữ left & height
+                new_w = max(dp(100), ww + dx)
+                # x, y, h không thay đổi
+            
+            # **Áp dụng size & pos cùng lúc**
+            self.size = (new_w, new_h)
+            self.pos = (new_x, new_y)
+            return True
+        
+        return super().on_touch_move(touch)
+
+    def on_touch_up(self, touch):
+        if self.is_locked:
+            return False
+        
+        if touch.grab_current is self:
+            touch.ungrab(self)
+            self.active_handle = None
+            return True
+        
+        if self.resize_active:
+            self.resize_active = False
+            self.active_handle = None
+            return True
+        
+        return super().on_touch_up(touch)
+    
+    def toggle_lock(self, instance):
+        self.is_locked = not self.is_locked
+        instance.icon = "lock-open" if self.is_locked else "lock"
+        instance.icon_color = 'red' if self.is_locked else 'black'
+    
+    def delete_widget(self, instance):
+        if hasattr(self.parent, 'on_widget_deleted'):
+            self.parent.on_widget_deleted(self.widget_id)
+        self.parent.remove_widget(self)
+
 # ---------- Utils ----------
 
 def stroke_in_viewport(stroke, vp):
