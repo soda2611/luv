@@ -42,7 +42,6 @@ EMOJI_LIKE = [
 REF_W = 1080
 REF_H = 1920
 
-
 import asyncio
 import os
 import requests
@@ -56,22 +55,24 @@ import re
 from datetime import datetime
 from kivymd.app import MDApp
 from kivymd.uix.boxlayout import MDBoxLayout
+from kivymd.uix.floatlayout import MDFloatLayout
 from kivymd.uix.anchorlayout import MDAnchorLayout
 from kivymd.uix.textfield import MDTextField
 from kivymd.uix.label import MDLabel
-from kivymd.uix.button import MDIconButton, MDFillRoundFlatButton
+from kivymd.uix.button import MDIconButton, MDFillRoundFlatButton, MDFillRoundFlatIconButton
 from kivymd.uix.dialog import MDDialog
 from kivymd.uix.menu import MDDropdownMenu
 from kivymd.uix.pickers import MDDatePicker
 from kivymd.uix.scrollview import ScrollView
 from kivymd.uix.card import MDCard
-from kivymd.uix.behaviors import TouchBehavior
+from kivymd.uix.screenmanager import MDScreenManager
+from kivymd.uix.screen import MDScreen
+from kivymd.uix.transition.transition import MDFadeSlideTransition
 from kivy.animation import Animation
 from kivy.clock import Clock
 from kivy.core.window import Window
 from kivy.metrics import dp
 from kivy.utils import platform
-from kivy.uix.widget import Widget
 from kivy.properties import *
 from kivy.graphics import Line, PushMatrix, PopMatrix, Translate, Color, InstructionGroup, Rectangle, Scale
 from plyer import notification
@@ -83,7 +84,9 @@ ssl_context.verify_mode = ssl.CERT_NONE
 
 message_cache = []
 msg_id_list={}
+file_id_list={}
 draw_mode=False
+todo_draw_mode=False
 if not os.path.exists("build.txt"): download_file('luv', 'build.txt', 'build.txt')
 with open('build.txt', encoding="utf-8") as fi: build=fi.read()
 
@@ -317,7 +320,7 @@ def stroke_in_viewport(stroke, vp):
     return not (max_x < vx1 or min_x > vx2 or max_y < vy1 or min_y > vy2)
 
 # ---------- Draw Board ----------
-class InfiniteDrawBoard(MDAnchorLayout):
+class DrawCanvas(MDAnchorLayout):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
@@ -332,6 +335,7 @@ class InfiniteDrawBoard(MDAnchorLayout):
         self.eraser_radius = 18
 
         self.on_stroke_finished = None
+        self.on_stroke_deleted = None
         self.bind(size=self._apply_flip, pos=self._apply_flip)
         Clock.schedule_once(self._apply_flip, 0)
         
@@ -536,8 +540,215 @@ class InfiniteDrawBoard(MDAnchorLayout):
         self.strokes.clear()
         self.current_stroke = None
 
+class Whiteboard(MDAnchorLayout):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+        # stroke_id -> stroke
+        self.strokes = {}
+
+        self.current_stroke = None
+        self.tool = "pen"   # "pen" | "eraser"
+
+        self.pen_color = (0, 0, 0, 1)
+        self.pen_width = 2.5
+        self.eraser_radius = 18
+        self.md_bg_color='white'
+
+        self.on_stroke_finished = None
+        self.on_stroke_deleted = None
+
+    # --------------------------------------------------
+    # PEN
+    # --------------------------------------------------
+
+    def on_touch_down(self, touch):
+        if not todo_draw_mode: return False
+
+        if not self.collide_point(*touch.pos):
+            return False
+
+        wx, wy = self.to_local(*touch.pos)
+
+        if self.tool == "pen":
+            self._start_stroke(wx, wy)
+            return True
+
+        if self.tool == "eraser":
+            self._erase_at(wx, wy)
+            return True
+
+        return False
+
+    def on_touch_move(self, touch):
+        if not todo_draw_mode: return False
+        
+        if not self.collide_point(*touch.pos):
+            return False
+
+        wx, wy = self.to_local(*touch.pos)
+
+        if self.tool == "pen" and self.current_stroke:
+            self._extend_stroke(wx, wy)
+            return True
+
+        if self.tool == "eraser":
+            self._erase_at(wx, wy)
+            return True
+
+        return False
+
+    def on_touch_up(self, touch):
+        if not todo_draw_mode: return False
+
+        if self.tool == "pen" and self.current_stroke:
+            if self.on_stroke_finished:
+                self.on_stroke_finished(self.current_stroke)
+        self.current_stroke = None
+        return False
+
+    def _start_stroke(self, x, y):
+        stroke_id = norm_uuid_hyphen(str(uuid4().hex))
+
+        group = InstructionGroup()
+        group.add(Color(*self.pen_color))
+        line = Line(
+            points=[x, y],
+            width=self.pen_width,
+            cap="round",
+            joint="round"
+        )
+        group.add(line)
+
+        stroke = {
+            "id": stroke_id,
+            "group": group,
+            "line": line,
+            "points": [(x, y)],
+            "bbox": [x, y, x, y],  # minx, miny, maxx, maxy
+        }
+
+        self.strokes[stroke_id] = stroke
+        self.canvas.add(group)
+        self.current_stroke = stroke
+
+    def _extend_stroke(self, x, y):
+        st = self.current_stroke
+        st["points"].append((x, y))
+        st["line"].points += [x, y]
+
+        bx = st["bbox"]
+        bx[0] = min(bx[0], x)
+        bx[1] = min(bx[1], y)
+        bx[2] = max(bx[2], x)
+        bx[3] = max(bx[3], y)
+
+    # --------------------------------------------------
+    # ERASER
+    # --------------------------------------------------
+
+    def _erase_at(self, cx, cy):
+        r = self.eraser_radius
+
+        # copy keys để remove an toàn
+        for stroke_id in list(self.strokes.keys()):
+            st = self.strokes[stroke_id]
+            bx = st["bbox"]
+
+            if not self._circle_hits_bbox(cx, cy, r, bx):
+                continue
+
+            self._remove_stroke(stroke_id)
+
+    def _remove_stroke(self, stroke_id):
+        st = self.strokes.pop(norm_uuid_hyphen(stroke_id), None)
+        if not st:
+            return
+        
+        self.canvas.remove(st["group"])
+
+        if hasattr(self, "on_stroke_deleted") and self.on_stroke_deleted:
+            self.on_stroke_deleted(stroke_id)
+            
+    @staticmethod
+    def _circle_hits_bbox(cx, cy, r, bbox):
+        minx, miny, maxx, maxy = bbox
+        nx = max(minx, min(cx, maxx))
+        ny = max(miny, min(cy, maxy))
+        dx = cx - nx
+        dy = cy - ny
+        return dx * dx + dy * dy <= r * r
+
+    # --------------------------------------------------
+    # REALTIME API
+    # --------------------------------------------------
+
+    def draw_remote_stroke(self, payload):
+        sid = norm_uuid_hyphen(payload["stroke_id"]) 
+
+        if sid not in self.strokes:
+            payload = dict(payload)
+            payload["stroke_id"] = sid
+            self._create_remote_stroke(payload)
+            return
+
+        st = self.strokes[sid]
+        for x, y in payload["points"]:
+            st["points"].append((x, y))
+            st["line"].points += [x, y]
+            bx = st["bbox"]
+            bx[0] = min(bx[0], x)
+            bx[1] = min(bx[1], y)
+            bx[2] = max(bx[2], x)
+            bx[3] = max(bx[3], y)
+
+    def _create_remote_stroke(self, payload):
+        sid = norm_uuid_hyphen(payload["stroke_id"])
+        pts = payload["points"]
+        if not pts:
+            return
+
+        group = InstructionGroup()
+        group.add(Color(*payload["color"]))
+        fixed_pts = []
+        for x, y in pts:
+            fixed_pts.append((x, self.height - y))
+
+        xs = [p[0] for p in fixed_pts]
+        ys = [p[1] for p in fixed_pts]
+        line = Line(
+                points=[c for p in fixed_pts for c in p],
+                width=payload["width"],
+                cap="round",
+                joint="round"
+            )
+        group.add(line)
+
+        self.strokes[sid] = {
+            "id": sid,
+            "group": group,
+            "line": line,
+            "points": fixed_pts,
+            "bbox": [min(xs), min(ys), max(xs), max(ys)],
+        }
+
+        self.canvas.add(group)
+
+    def erase_remote_stroke(self, stroke_id):
+        self._remove_stroke(norm_uuid_hyphen(stroke_id))
+
+    def clear_all(self):
+    # remove từng stroke khỏi canvas (KHÔNG canvas.clear)
+        for st in list(self.strokes.values()):
+            self.canvas.remove(st["group"])
+        self.strokes.clear()
+        self.current_stroke = None
+
 class OverlayContainer(MDAnchorLayout):
     pass
+
+class ToolButton(MDIconButton):
+    tool = StringProperty('')
 
 # --- ChatApp ---
 class ChatApp(MDApp):
@@ -557,11 +768,13 @@ class ChatApp(MDApp):
         self.last_date = None
         self.lookup = False
         self.lookup_date = datetime.strftime(datetime.now(), "%d/%m/%Y")
-        self._last_msg_height = 0
         self._reload_timer = None
         self._draw_queue = []
         self._draw_lock = threading.Lock()
+        self._todo_draw_queue = []
+        self._todo_draw_lock = threading.Lock()
         self.deleted_strokes = set()
+        self.current_open_board=None
 
         if os.path.exists("uid.txt"):
             with open("uid.txt", "r") as f:
@@ -571,10 +784,13 @@ class ChatApp(MDApp):
             self.user_id = None
             Clock.schedule_once(lambda dt: self.show_uid_dialog())
 
-        # Main layout with improved spacing and styling
         layout = MDBoxLayout(orientation="vertical", padding=[dp(20), dp(10), dp(20), dp(35)], spacing=dp(10), md_bg_color=bg)
+        todo_layout = MDBoxLayout(orientation="vertical", padding=[dp(20), dp(10), dp(20), dp(35)], spacing=dp(10), md_bg_color=bg)
         
-        # Top bar with title
+        #-------------------------------------------------------------
+        #                            Chat                            |
+        #-------------------------------------------------------------
+
         self.top_bar = MDBoxLayout(size_hint=(1, None), height=dp(50), padding=dp(5), spacing=dp(10))
         self.top_icon = MDFillRoundFlatButton(
             text=format_text_with_fonts("\U0001F496 ngha và hmn", True),
@@ -597,11 +813,10 @@ class ChatApp(MDApp):
         self.top_bar.add_widget(self.top_label)
         self.top_bar.add_widget(self.uid_button)
         
-        # Message scroll area with better styling
         self.msg_scroll = ScrollView(do_scroll_x=False, size_hint=(1, 1))
         self.msg_list = MDBoxLayout(orientation="vertical", size_hint=(1, None), spacing=dp(10), padding=[0, dp(10), 0, dp(10)])
         self.container = OverlayContainer(size_hint=(1, None), anchor_y='top')
-        self.draw_canvas = InfiniteDrawBoard()
+        self.draw_canvas = DrawCanvas()
         self.draw_canvas.size_hint = (None, None)
         self.draw_canvas.on_stroke_finished = self._on_local_stroke_finished
         self.draw_canvas.on_stroke_deleted = self._on_local_stroke_deleted
@@ -612,7 +827,6 @@ class ChatApp(MDApp):
         self.container.add_widget(self.draw_canvas)
         self.msg_scroll.add_widget(self.container)
         
-        # Input card with rounded design
         self.input_card = MDCard(
             orientation="vertical",
             size_hint=(1, None),
@@ -624,7 +838,6 @@ class ChatApp(MDApp):
             elevation=0
         )
         
-        # Text input layout
         self.text_input = MDBoxLayout(size_hint=(1, None), height=dp(50), spacing=dp(5))
         self.far_day = FarDay(markup=True, size_hint=(1, None), height=dp(10), halign="center")
         self.text_input.input = LimitedTextField(
@@ -648,19 +861,17 @@ class ChatApp(MDApp):
             icon='send-variant',
             disabled=True,
             theme_icon_color="Custom",
-            icon_color=btn,
+            icon_color=[0, 0, 0, 0],
             size_hint=(None, None),
             size=(dp(48), dp(48)),
             pos_hint={"right": 1, "bottom": 0},
             on_release=self.send_msg
         )
-        
-        # Assemble input components
+
         self.text_input.add_widget(self.text_input.input)
         self.text_input.add_widget(self.text_input.button)
         self.input_card.add_widget(self.text_input)
         
-        # Bind text changes for button enable/disable
         self.far_day.bind(is_far=self.status)
         self.far_day.bind(texture_size=self.far_day.setter("texture_size"))
         self.far_day.bind(texture_size=self.far_day.setter("size"))
@@ -672,7 +883,6 @@ class ChatApp(MDApp):
         self.noti.add_widget(self.noti.label)
         self.noti.add_widget(self.noti.button)
 
-        # Assemble main layout
         layout.add_widget(self.top_bar)
         layout.add_widget(MDBoxLayout(size_hint=(1, None), md_bg_color=btn, height=dp(2), pos_hint={"center_x": 0.5}))  # Spacer
         layout.add_widget(self.noti)    
@@ -680,12 +890,192 @@ class ChatApp(MDApp):
         layout.add_widget(self.input_card)
         layout.add_widget(self.far_day)
 
+        #-------------------------------------------------------------
+        #                           To-Do                            |
+        #-------------------------------------------------------------
+
+        self.todo_top_bar = MDBoxLayout(size_hint=(1, None), height=dp(50), padding=dp(5), spacing=dp(10))
+        self.todo_top_icon = MDFillRoundFlatIconButton(
+            icon="arrow-left",
+            text=format_text_with_fonts("\U0001F496 ngha và hmn", True),
+            theme_text_color="Custom",
+            text_color=primarycolor,
+            theme_icon_color="Custom",
+            icon_color=primarycolor,
+            md_bg_color=bg,
+            on_release=lambda instance: setattr(self.sm, 'current', 'chat')
+        )
+        self.todo_top_back = MDFillRoundFlatIconButton(
+            icon="arrow-left",
+            text=format_text_with_fonts("\U0001F496 ngha và hmn", True),
+            theme_text_color="Custom",
+            text_color=primarycolor,
+            theme_icon_color="Custom",
+            icon_color=primarycolor,
+            md_bg_color=bg,
+            on_release=self.load_todo_list
+        )
+        self.todo_top_label = MDFillRoundFlatButton(
+            text="\u2600 <3 \u2B50",
+            theme_text_color="Custom",
+            line_color=btn,
+            md_bg_color=boxbg,
+            text_color=primarycolor,
+            font_name="resources/fonts/seguiemj.ttf",
+            on_release=self.change_text
+        )
+        self.todo_top_bar.add_widget(self.todo_top_icon)
+        self.todo_top_bar.add_widget(MDBoxLayout(size_hint=(1, 1)))
+        self.todo_top_bar.add_widget(self.todo_top_label)
+
+
+        self.todo_new_whiteboard_button = MDFillRoundFlatIconButton(
+            icon="plus",
+            text="Thêm whiteboard mới",
+            theme_text_color="Custom",
+            text_color='white',
+            theme_icon_color="Custom",
+            icon_color='white',
+            md_bg_color=btn,
+            pos_hint={"center_x": 0.5},
+            on_release=self.show_whiteboard_dialog
+        )
+        self.todo_scroll = ScrollView(size_hint=(1, 1), scroll_type=['bars', 'content'])
+        self.todo_board = Whiteboard()
+        self.todo_board.size_hint=(None, None)
+        self.todo_board.height=dp(100000)
+        self.todo_board.width=dp(100000)
+        self.todo_board.on_stroke_finished = self._on_local_todo_stroke_finished
+        self.todo_board.on_stroke_deleted = self._on_local_todo_stroke_deleted
+        self.todo_browse = MDBoxLayout(orientation="vertical", size_hint=(1, None), spacing=dp(10), padding=[0, dp(10), 0, dp(10)])
+        self.todo_container = OverlayContainer(size_hint=(1, None), anchor_y='top')
+        self.todo_browse.bind(minimum_height=self.todo_browse.setter('height'))
+        self.todo_browse.bind(size=self.sync_overlay_height)
+        self.todo_scroll.add_widget(self.todo_browse)
+
+        self.todo_toolbar = MDCard(
+            md_bg_color=btn,
+            size_hint=(None, None),
+            height=dp(60),
+            padding=dp(5),
+            radius=dp(30),
+            pos_hint={"center_x": 0.5}
+        )
+
+        self.todo_toolbar_background_overlay = MDFloatLayout(
+            size_hint=(None, 1),
+            pos_hint={"center_x": 0.5, "center_y": 0.5},
+        )
+
+        self.todo_toolbar_button_background = MDCard(
+            md_bg_color=boxbg,
+            size_hint=(None, None),
+            height=dp(50),
+            width=dp(50),
+            radius=dp(25),
+            pos_hint={"center_y": 0.5, "x": 0}
+        )
+
+        self.todo_toolbar_button_overlay = MDBoxLayout(
+            size_hint=(1, 1),
+            pos_hint={"center_x": 0.5, "center_y": 0.5}
+        )
+
+        self.todo_toolbar.bind(minimum_width=self.todo_toolbar.setter("width"))
+        self.todo_toolbar_button_overlay.bind(minimum_width=self.todo_toolbar_button_overlay.setter("width"))
+        Window.bind(width=self.set_ttbgo_width)
+
+        self.todo_pen_button = ToolButton(
+            icon="pencil",
+            theme_icon_color="Custom",
+            md_bg_color=[0, 0, 0, 0],
+            icon_color='black',
+            size_hint=(None, None),
+            pos_hint={"center_y": 0.5},
+            on_release=self.switch_todo_tool,
+            ripple_color=boxbg,
+            tool='pen'
+        )
+        self.todo_eraser_button = ToolButton(
+            icon="eraser",
+            theme_icon_color="Custom",
+            md_bg_color=[0, 0, 0, 0],
+            icon_color='white',
+            size_hint=(None, None),
+            pos_hint={"center_y": 0.5},
+            on_release=self.switch_todo_tool,
+            ripple_color=boxbg,
+            tool='eraser'
+        )
+        self.todo_scroll_lock_button = ToolButton(
+            icon="lock",
+            theme_icon_color="Custom",
+            md_bg_color=[0, 0, 0, 0],
+            icon_color='white',
+            size_hint=(None, None),
+            pos_hint={"center_y": 0.5},
+            ripple_color=boxbg,
+            on_release=self.enable_todo
+        )
+        self.todo_more_button = MDIconButton(
+            icon="dots-horizontal",
+            theme_icon_color="Custom",
+            md_bg_color=[0, 0, 0, 0],
+            icon_color='white',
+            size_hint=(None, None),
+            pos_hint={"center_y": 0.5},
+            ripple_color=boxbg,
+        )
+
+        self.last_todo_tool=self.todo_pen_button
+
+        self.todo_toolbar.add_widget(self.todo_toolbar_background_overlay)
+        self.todo_toolbar_background_overlay.add_widget(self.todo_toolbar_button_background)
+        self.todo_toolbar_background_overlay.add_widget(self.todo_toolbar_button_overlay)
+        self.todo_toolbar_button_overlay.add_widget(self.todo_pen_button)
+        self.todo_toolbar_button_overlay.add_widget(self.todo_eraser_button)
+        self.todo_toolbar_button_overlay.add_widget(self.todo_scroll_lock_button)
+        self.todo_toolbar_button_overlay.add_widget(self.todo_more_button)
+
+        todo_layout.add_widget(self.todo_top_bar)
+        todo_layout.add_widget(MDBoxLayout(size_hint=(1, None), md_bg_color=btn, height=dp(2), pos_hint={"center_x": 0.5}))  # Spacer
+        todo_layout.add_widget(self.todo_scroll)
+        todo_layout.add_widget(self.todo_new_whiteboard_button)
+
+        Clock.schedule_once(lambda dt: self.set_ttbgo_width(), 0)
         Clock.schedule_once(lambda dt: self.sync_overlay_height(), 0)
         Clock.schedule_once(lambda dt: self.load_messages(), 0)
+        Clock.schedule_once(lambda dt: self.load_todo_list(), 0)
         Clock.schedule_interval(self._flush_draw_queue, 1 / 60)
+        Clock.schedule_interval(self._flush_todo_draw_queue, 1 / 60)
         self.listen_realtime()
 
-        return layout
+        self.sm = MDScreenManager(transition=MDFadeSlideTransition())
+        todo = MDScreen(name="to-do")
+        chat = MDScreen(name="chat")
+        chat.add_widget(layout)
+        todo.add_widget(todo_layout)
+        self.sm.add_widget(chat)
+        self.sm.add_widget(todo)
+
+        return self.sm
+    
+    def enable_todo(self, instance):
+        global todo_draw_mode
+        instance.icon = "lock-open" if not todo_draw_mode else "lock"
+        self.todo_scroll.do_scroll, todo_draw_mode=[True, False] if todo_draw_mode else [False, True]
+    
+    def switch_todo_tool(self, instance):
+        self.last_todo_tool.icon_color='white'
+        instance.icon_color='black'
+        self.todo_toolbar_button_background.pos_hint={"center_y": 0.5}
+        Animation(x=instance.x, duration=0.3, transition='out_quart').start(self.todo_toolbar_button_background)
+        self.last_todo_tool=instance
+        self.todo_board.tool=instance.tool
+
+    def set_ttbgo_width(self, *args):
+        self.todo_toolbar_background_overlay.width=self.todo_toolbar_button_overlay.width
+        self.todo_toolbar_button_background.x=self.last_todo_tool.x
     
     def stroke_to_norm_points(self, stroke):
         cw, ch = self.draw_canvas.width, self.draw_canvas.height
@@ -748,6 +1138,41 @@ class ChatApp(MDApp):
 
         threading.Thread(target=send, daemon=True).start()
     
+    def _on_local_todo_stroke_deleted(self, stroke_id):
+        def send():
+            url = f"{SUPABASE_URL}/rest/v1/draw?id=eq.{norm_uuid_hyphen(stroke_id)}"
+            requests.delete(url, headers=headers)
+
+        threading.Thread(target=send, daemon=True).start()
+
+    def _on_local_todo_stroke_finished(self, stroke):
+        points = []
+        cw, ch = self.todo_board.width, self.todo_board.height
+
+        for x, y in stroke["points"]:
+            nx = x / cw
+            ny = y / ch
+            points.append((nx, ny))
+
+        data = {
+            "id": norm_uuid_hyphen(stroke["id"]),
+            "sender": self.user_id,
+            "points": points,
+            "width": 2,  # scale theo canvas
+            "color": list(self.todo_board.pen_color),
+            "created_at": time.strftime("%H:%M"),
+            "date": normalize_date(self.lookup_date),
+            "file": self.current_open_board
+        }
+
+        def send():
+            url = f"{SUPABASE_URL}/rest/v1/draw"
+            res = requests.post(url, headers=headers, json=data)
+            if res.status_code not in (200, 201):
+                print("DRAW INSERT FAIL:", res.text)
+
+        threading.Thread(target=send, daemon=True).start()
+
     def _debounced_reload(self, date_str, delay=0.25):
         if self._reload_timer:
             try: self._reload_timer.cancel()
@@ -765,14 +1190,15 @@ class ChatApp(MDApp):
     
     def sync_overlay_height(self, *args):
         paper_height = max(self.msg_list.height, self.msg_scroll.height)
+        todo_paper_height = max(self.todo_browse.height, self.todo_scroll.height)
 
         old_h = self.draw_canvas.height
 
+        self.todo_container.height=todo_paper_height
         self.container.height = paper_height
         self.draw_canvas.width = self.container.width
         self.draw_canvas.height = paper_height
 
-        # nếu height thực sự thay đổi → update stroke
         if old_h != paper_height:
             self.update_all_strokes_after_resize()
 
@@ -806,6 +1232,15 @@ class ChatApp(MDApp):
                 "on_release": self.draw_mode
             },
             {
+                "text": "Whiteboard",
+                "text_color": primarycolor,
+                "trailing_icon": "drawing",
+                "theme_trailing_icon_color": "Custom",
+                "trailing_icon_color": primarycolor,
+                "on_release": self.open_todo_board,
+                "disabled": True if draw_mode else False
+            },
+            {
                 "text": "Check tin nhắn cũ",
                 "text_color": primarycolor,
                 "trailing_icon": "history",
@@ -817,7 +1252,7 @@ class ChatApp(MDApp):
             {
                 "text": "Đổi UID",
                 "text_color": primarycolor,
-                "trailing_icon": "content-copy",
+                "trailing_icon": "account",
                 "theme_trailing_icon_color": "Custom",
                 "trailing_icon_color": primarycolor,
                 "on_release": self.show_uid_dialog
@@ -844,6 +1279,10 @@ class ChatApp(MDApp):
             position="bottom"
         )
         self.menu.open()
+
+    def open_todo_board(self, *args):
+        self.menu.dismiss()
+        self.sm.current='to-do'
 
     def set_tool_pen(self, *args):
         try: self.menu.dismiss()
@@ -896,6 +1335,30 @@ class ChatApp(MDApp):
         )
         self.dialog.open()
 
+    def show_whiteboard_dialog(self, *args):
+        try: self.menu.dismiss()
+        except: pass
+        self.whiteboard_input = MDTextField(hint_text="Đặt tên whiteboard nề bbi <3",
+                                    font_name="resources/fonts/segoeui.ttf",
+                                    line_color_normal=boxbg,
+                                    line_color_focus=boxbg,
+                                    hint_text_color=[0.75 - i for i in primarycolor],
+                                    hint_text_color_focus=primarycolor,
+                                    text_color_focus=primarycolor,
+                                    fill_color_normal=boxbg,
+                                    size_hint=(1, None),
+                                    pos_hint={'center_y': 0.5},
+                                    height=dp(30),
+                                    multiline=False)
+        self.dialog = MDDialog(
+            title="Nhập tên whiteboard",
+            type="custom",
+            content_cls=self.whiteboard_input,
+            buttons=[MDFillRoundFlatButton(text="OK", on_release=self.create_whiteboard, md_bg_color=btn)],
+            md_bg_color=menubg
+        )
+        self.dialog.open()
+
     def save_uid(self, *args):
         uid = self.uid_input.text.strip()
         if uid:
@@ -919,7 +1382,7 @@ class ChatApp(MDApp):
             self.show_uid_dialog()
             return
         
-        if self.lookup and self.lookup_date != datetime.strftime(datetime.now(), "%d/%m/%Y"):
+        if self.lookup and normalize_date(self.lookup_date) != datetime.strftime(datetime.now(), "%d/%m/%Y"):
             self.lookup=False
             self.msg_list.clear_widgets()
             self.load_messages()
@@ -937,6 +1400,21 @@ class ChatApp(MDApp):
                 if 'iu' in msg.lower().translate(str.maketrans('', '', '.,?!')).split(): Clock.schedule_once(lambda x: self.spawn_emoji(multi=True))
             else:
                 print("Error:", res.text)
+
+    def create_whiteboard(self, *args):
+        if not self.user_id:
+            self.show_uid_dialog()
+            return
+        
+        if hasattr(self.todo_browse.children[0], 'text'):
+            if self.todo_browse.children[0].text=='Chưa có whiteboard nào được tạo hết ;-;': self.todo_browse.remove_widget(self.todo_browse.children[0])
+
+        name_ = self.whiteboard_input.text
+        if name_:
+            url = f"{SUPABASE_URL}/rest/v1/todo"
+            data = {"whiteboard_name": name_, "created_at": time.strftime("%d/%m/%Y")}
+            requests.post(url, headers=headers, json=data)
+            self.dialog.dismiss()
 
     def load_messages(self, instance=None, date_str=datetime.strftime(datetime.now(), '%d/%m/%Y'), data_range=None):
         self.lookup_date=date_str
@@ -956,18 +1434,37 @@ class ChatApp(MDApp):
             if rows:
                 for row in rows:
                     self.display_message(row['sender'], row['content'], row['created_at'], row['date'], row['id'])
-            elif datetime.strptime(date_str, "%d/%m/%Y") < datetime.now() and self.lookup_date != datetime.strftime(datetime.now(), "%d/%m/%Y"): self.display_message('ngha' if self.user_id=='hmn' else 'hmn', 'Không có tin nhắn nào cho ngày này hết ;-;', '00:00', date_str, msg_id='0000')
-            elif datetime.strptime(date_str, "%d/%m/%Y") > datetime.now() or self.lookup_date == datetime.strftime(datetime.now(), "%d/%m/%Y"): self.display_message('ngha' if self.user_id=='hmn' else 'hmn', 'Mong chờ những lời iu thương của {} qaaa :3'.format('hmn' if self.user_id=='hmn' else 'ngha'), '00:00', date_str, msg_id='0000')
+            elif datetime.strptime(date_str, "%d/%m/%Y") < datetime.now() and normalize_date(self.lookup_date) != datetime.strftime(datetime.now(), "%d/%m/%Y"): self.display_message('ngha' if self.user_id=='hmn' else 'hmn', 'Không có tin nhắn nào cho ngày này hết ;-;', '00:00', date_str, msg_id='0000')
+            elif datetime.strptime(date_str, "%d/%m/%Y") > datetime.now() or normalize_date(self.lookup_date) == datetime.strftime(datetime.now(), "%d/%m/%Y"): self.display_message('ngha' if self.user_id=='hmn' else 'hmn', 'Mong chờ những lời iu thương của {} qaaa :3'.format('hmn' if self.user_id=='hmn' else 'ngha'), '00:00', date_str, msg_id='0000')
             Clock.schedule_once(self.scroll_to_bottom)
         
-        self._last_msg_height = self.msg_list.height
         Clock.schedule_once(self.load_far)
         Clock.schedule_once(lambda dt: self.load_strokes(date_str), 0)
+
+    def load_todo_list(self, instance=None):
+        self.todo_scroll.clear_widgets()
+        self.todo_scroll.add_widget(self.todo_browse)
+        if self.todo_top_icon not in self.todo_top_bar.children: self.todo_top_bar.add_widget(self.todo_top_icon, index=-1)
+        if self.todo_new_whiteboard_button not in self.sm.get_screen("to-do").children[0].children: self.sm.get_screen("to-do").children[0].add_widget(self.todo_new_whiteboard_button)
+        self.sm.get_screen("to-do").children[0].remove_widget(self.todo_toolbar)
+        self.todo_top_bar.remove_widget(self.todo_top_back)
+        self.current_open_board=None
+        self.todo_browse.clear_widgets()
+        url = f"{SUPABASE_URL}/rest/v1/todo?select=*&order=created_at.asc"
+        res = requests.get(url, headers=headers)
+        if res.status_code == 200:
+            rows = res.json()
+            if rows:
+                for row in rows[-10:]:
+                    self.display_file(row['whiteboard_name'], row['created_at'], row['id'])
+            else: self.todo_browse.add_widget(MDLabel(text="Chưa có whiteboard nào được tạo hết ;-;", halign='center', valign='center', size_hint=(1, 1)))
+        
+        Clock.schedule_once(self.load_far)
 
     def load_strokes(self, date_str):
         url = (
             f"{SUPABASE_URL}/rest/v1/draw"
-            f"?select=id,points,width,color"
+            f"?select=id,points,width,color,file"
             f"&date=eq.{date_str}"
             f"&order=created_at.asc"
         )
@@ -981,6 +1478,7 @@ class ChatApp(MDApp):
         cw, ch = self.draw_canvas.width, self.draw_canvas.height
 
         for row in res.json():
+            if row["file"]: continue
             pts = []
             for nx, ny in row["points"]:
                 x = nx * cw
@@ -988,6 +1486,45 @@ class ChatApp(MDApp):
                 pts.append((x, y))
 
             self.draw_canvas.draw_remote_stroke({
+                "stroke_id": norm_uuid_hyphen(row["id"]),
+                "points": pts,
+                "width": 2,
+                "color": tuple(row["color"]),
+            })
+
+    def load_todo_strokes(self, name):
+        self.todo_scroll.clear_widgets()
+        self.todo_scroll.add_widget(self.todo_board)
+        self.todo_top_bar.add_widget(self.todo_top_back, index=-1)
+        self.todo_top_bar.remove_widget(self.todo_top_icon)
+        self.current_open_board=name
+        self.sm.get_screen("to-do").children[0].add_widget(self.todo_toolbar)
+        self.sm.get_screen("to-do").children[0].remove_widget(self.todo_new_whiteboard_button)
+        if todo_draw_mode: self.enable_todo(self.todo_scroll_lock_button)
+
+        url = (
+            f"{SUPABASE_URL}/rest/v1/draw"
+            f"?select=id,points,width,color"
+            f"&file=eq.{name}"
+            f"&order=created_at.asc"
+        )
+        res = requests.get(url, headers=headers)
+        if res.status_code != 200:
+            print("LOAD STROKES FAIL:", res.text)
+            return
+
+        self.todo_board.clear_all()
+
+        cw, ch = self.todo_board.width, self.todo_board.height
+
+        for row in res.json():
+            pts = []
+            for nx, ny in row["points"]:
+                x = nx * cw
+                y = ch - (ny * ch)
+                pts.append((x, y))
+
+            self.todo_board.draw_remote_stroke({
                 "stroke_id": norm_uuid_hyphen(row["id"]),
                 "points": pts,
                 "width": 2,
@@ -1103,6 +1640,43 @@ class ChatApp(MDApp):
         
         msg_id_list[msg_id]=msg_label
 
+    def display_file(self, file, timestamp, file_id):
+        global file_id_list
+        """Display a message with modern UI styling"""
+        
+        # Create new card
+        file_card = MDCard(
+            orientation="vertical",
+            size_hint=(1, None),
+            padding=[dp(10), dp(10), dp(10), dp(10)],
+            spacing=dp(5),
+            md_bg_color=boxbg[:-1]+(0.25,),
+            radius=[dp(10), dp(10), dp(10), dp(10)],
+            elevation=0,
+            on_release=lambda dt: Clock.schedule_once(lambda x: self.load_todo_strokes(file))
+        )
+        
+        # Message header with file name
+        header_layout = MDBoxLayout(size_hint=(1, None), height=dp(25), spacing=dp(5))
+        symbol = "\u2022"
+        file_label = MDLabel(
+            text=f"[size={int(dp(14))}]{format_text_with_fonts(f'{file} {symbol} {timestamp}', True)}[/size]",
+            size_hint=(1, None),
+            height=dp(25),
+            theme_text_color="Custom",
+            text_color=primarycolor,
+            font_size=dp(14),
+            markup=True
+        )
+        header_layout.add_widget(file_label)
+        
+        file_card.add_widget(header_layout)
+        file_card.bind(minimum_height=file_card.setter('height'))
+        
+        self.todo_browse.add_widget(file_card)
+        
+        file_id_list[file_id]=file_card
+
     def spawn_emoji(self, emoji="\U0001F496", pos=(0, 0), multi=False):
         if not multi:
             label = MDLabel(
@@ -1200,6 +1774,30 @@ class ChatApp(MDApp):
                 "color": tuple(r.get("color", (0,0,0,1)))
             })
 
+    def _flush_todo_draw_queue(self, dt):
+        if not self._todo_draw_queue:
+            return
+
+        with self._todo_draw_lock:
+            batch = self._todo_draw_queue[:]
+            self._todo_draw_queue.clear()
+        
+        for r in batch:
+            pts = []
+            for nx, ny in r.get("points", []):
+                cw, ch = self.todo_board.width, self.todo_board.height
+                x = nx * cw
+                y = ch - (ny * ch)
+                pts.append((x, y))
+            if not pts:
+                continue
+            self.todo_board.draw_remote_stroke({
+                "stroke_id": norm_uuid_hyphen(r["id"]),
+                "points": pts,
+                "width": 2,
+                "color": tuple(r.get("color", (0,0,0,1)))
+            })
+
     def listen_realtime(self):
         async def realtime_loop():
             while True:  # 🔁 vòng reconnect
@@ -1219,15 +1817,13 @@ class ChatApp(MDApp):
                         ping_interval=20,
                         ping_timeout=20
                     ) as ws:
-
                         # Join channel
-                        join_msg = {
+                        await ws.send(json.dumps({
                             "topic": "realtime:public:messages",
                             "event": "phx_join",
                             "payload": {},
                             "ref": 1
-                        }
-                        await ws.send(json.dumps(join_msg))
+                        }))
 
                         await ws.send(json.dumps({
                             "topic": "realtime:public:reaction",
@@ -1257,6 +1853,13 @@ class ChatApp(MDApp):
                             "ref": 5
                         }))
 
+                        await ws.send(json.dumps({
+                            "topic": "realtime:public:todo",
+                            "event": "phx_join",
+                            "payload": {},
+                            "ref": 6
+                        }))
+
                         while True:
                             msg = await ws.recv()
                             data = json.loads(msg)
@@ -1268,12 +1871,17 @@ class ChatApp(MDApp):
                                         msg_id = record.get("id")
                                         if msg_id and msg_id in msg_id_list:
                                             msg_id_list[msg_id].text = f"[size={int(dp(14))}][i]Tin nhắn đã thu hồi ;-;[/i][/size]"
-                                            
                                     elif data.get("topic") == "realtime:public:draw":
                                         stroke_id = norm_uuid_hyphen(record.get("id"))
                                         Clock.schedule_once(
                                             lambda dt, sid=stroke_id: self.draw_canvas.erase_remote_stroke(sid)
                                         )
+                                        Clock.schedule_once(
+                                            lambda dt, sid=stroke_id: self.todo_board.erase_remote_stroke(sid)
+                                        )
+                                    elif data.get("topic") == "realtime:public:todo":
+                                        if len(self.todo_browse.children)==1: Clock.schedule_once(lambda dt: self.todo_browse.add_widget(MDLabel(text="Chưa có whiteboard nào được tạo hết ;-;", halign='center', valign='center', size_hint=(1, 1))))
+                                        Clock.schedule_once(lambda dt: self.todo_browse.remove_widget(file_id_list[record["id"]]))
                                 continue
 
                             if data.get("event") == "UPDATE" and data["topic"] == "realtime:public:version" and datetime.strptime(record["date"], "%d/%m/%Y").date() >= datetime.now().date() and build!=record["build"]:
@@ -1286,12 +1894,17 @@ class ChatApp(MDApp):
                                     if record["sender"] != self.user_id:
                                         Clock.schedule_once(lambda dt, r=record: self.spawn_emoji(pos=(r["x"] * w, r["y"] * h)))
                                 elif data["topic"] == "realtime:public:draw":
-                                    if record["sender"] != self.user_id and normalize_date(record["date"]) == normalize_date(self.lookup_date):
+                                    if record["file"] and record["file"] == self.current_open_board and record["sender"] != self.user_id:
+                                        with self._todo_draw_lock:
+                                            self._todo_draw_queue.append(record)
+                                    elif record["sender"] != self.user_id and normalize_date(record["date"]) == normalize_date(self.lookup_date):
                                         with self._draw_lock:
                                             self._draw_queue.append(record)
                                 elif data["topic"] == "realtime:public:far":
                                     self.far_day.start_day=record["start"]
                                     self.far_day.is_far=record["status"]
+                                elif data["topic"] == "realtime:public:todo":
+                                    Clock.schedule_once(lambda dt: self.display_file(record["whiteboard_name"], record["created_at"], record["id"]))
                                 else:
                                     sender = record["sender"]
                                     content = record["content"]
@@ -1299,7 +1912,7 @@ class ChatApp(MDApp):
                                     date = record["date"]
                                     msg_id = record["id"]
 
-                                    if self.lookup and self.lookup_date != datetime.strftime(datetime.now(), "%d/%m/%Y"):
+                                    if self.lookup and normalize_date(self.lookup_date) != datetime.strftime(datetime.now(), "%d/%m/%Y"):
                                         self.noti.button.disabled=False
                                         expand_vertical(self.noti, dp(40))
                                     else:
