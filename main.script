@@ -73,8 +73,9 @@ from kivy.clock import Clock
 from kivy.core.window import Window
 from kivy.metrics import dp
 from kivy.utils import platform
+from kivy.uix.widget import Widget
 from kivy.properties import *
-from kivy.graphics import Line, PushMatrix, PopMatrix, Translate, Color, InstructionGroup, Rectangle, Scale
+from kivy.graphics import Line, PushMatrix, PopMatrix, Translate, Color, InstructionGroup, Scale
 from plyer import notification
 from uuid import uuid4, UUID
 
@@ -308,6 +309,30 @@ class FarDay(MDLabel):
     is_far = BooleanProperty(False)
     start_day = StringProperty('01/01/0001')
 
+class HandlesOverlay(Widget):
+    def __init__(self, owner, **kwargs):
+        super().__init__(**kwargs)
+        self.owner = owner  # nếu sau này cần tham chiếu ngược
+
+    def redraw(self):
+        self.canvas.clear()
+        with self.canvas:
+            Color(0.8, 0.8, 0.8, 0.6)
+            handle_size = dp(10)
+            w, h = self.size
+            handles = [
+                (0,               h - handle_size, handle_size, handle_size),  # tl
+                (w - handle_size, h - handle_size, handle_size, handle_size),  # tr
+                (0,               0,               handle_size, handle_size),  # bl
+                (w - handle_size, 0,               handle_size, handle_size),  # br
+                (w/2 - handle_size/2, h - handle_size, handle_size, handle_size),  # t
+                (w/2 - handle_size/2, 0,               handle_size, handle_size),  # b
+                (0,               h/2 - handle_size/2, handle_size, handle_size),  # l
+                (w - handle_size, h/2 - handle_size/2, handle_size, handle_size),  # r
+            ]
+            for hx, hy, hw, hh in handles:
+                Line(rectangle=(hx, hy, hw, hh), width=1)
+
 class DraggableResizableWidget(MDCard):
     """Widget có thể kéo và thay đổi kích thước"""
     widget_id = StringProperty('')
@@ -323,7 +348,8 @@ class DraggableResizableWidget(MDCard):
         self.padding = dp(5)
         self.spacing = dp(5)
         self.radius = [dp(10)]
-        self.elevation = 2
+        self.line_color = btn
+        self.line_width = dp(1)
         
         # Resize handle
         self.resize_active = False
@@ -372,7 +398,12 @@ class DraggableResizableWidget(MDCard):
         self.add_widget(header)
         self.add_widget(self.content_box)
         
-        # Vẽ resize handles ở các góc
+        # --- FIX STENCIL: dùng InstructionGroup riêng cho handles ---
+        # Không còn dùng self.canvas.after.clear() nữa.
+        self._handles_group = InstructionGroup()
+        self.canvas.after.add(self._handles_group)
+
+        # Vẽ resize handles ở các góc khi pos/size đổi
         self.bind(size=self._update_handles, pos=self._update_handles)
     
     def _get_handle_at(self, touch_pos):
@@ -413,29 +444,29 @@ class DraggableResizableWidget(MDCard):
         return None
     
     def _update_handles(self, *args):
-        """Cập nhật vị trí handles"""
-        self.canvas.after.clear()
+        """Cập nhật vị trí handles — chỉ clear nhóm riêng, KHÔNG đụng canvas.after tổng."""
+        # ✅ Chỉ clear nhóm handles của riêng widget — không gây hỏng stencil
+        self._handles_group.clear()
         
-        with self.canvas.after:
-            Color(0.8, 0.8, 0.8, 0.6)
-            handle_size = dp(10)
-            wx, wy = self.pos
-            ww, wh = self.size
-            
-            # 8 handles: corners + edges
-            handles = [
-                (wx, wy + wh - handle_size, handle_size, handle_size),  # tl
-                (wx + ww - handle_size, wy + wh - handle_size, handle_size, handle_size),  # tr
-                (wx, wy, handle_size, handle_size),  # bl
-                (wx + ww - handle_size, wy, handle_size, handle_size),  # br
-                (wx + ww/2 - handle_size/2, wy + wh - handle_size, handle_size, handle_size),  # t
-                (wx + ww/2 - handle_size/2, wy, handle_size, handle_size),  # b
-                (wx, wy + wh/2 - handle_size/2, handle_size, handle_size),  # l
-                (wx + ww - handle_size, wy + wh/2 - handle_size/2, handle_size, handle_size),  # r
-            ]
-            
-            for hx, hy, hw, hh in handles:
-                Line(rectangle=(hx, hy, hw, hh), width=1)
+        # Vẽ lại handles
+        self._handles_group.add(Color(0.8, 0.8, 0.8, 0.6))
+        handle_size = dp(10)
+        wx, wy = self.pos
+        ww, wh = self.size
+        
+        # 8 handles: corners + edges
+        handles = [
+            (wx, wy + wh - handle_size, handle_size, handle_size),  # tl
+            (wx + ww - handle_size, wy + wh - handle_size, handle_size, handle_size),  # tr
+            (wx, wy, handle_size, handle_size),  # bl
+            (wx + ww - handle_size, wy, handle_size, handle_size),  # br
+            (wx + ww/2 - handle_size/2, wy + wh - handle_size, handle_size, handle_size),  # t
+            (wx + ww/2 - handle_size/2, wy, handle_size, handle_size),  # b
+            (wx, wy + wh/2 - handle_size/2, handle_size, handle_size),  # l
+            (wx + ww - handle_size, wy + wh/2 - handle_size/2, handle_size, handle_size),  # r
+        ]
+        for hx, hy, hw, hh in handles:
+            self._handles_group.add(Line(rectangle=(hx, hy, hw, hh), width=1))
     
     def _check_double_click(self, touch_pos):
         """Kiểm tra double-click"""
@@ -504,9 +535,21 @@ class DraggableResizableWidget(MDCard):
             md_bg_color=boxbg,
         )
         dialog.open()
+
+    
+    def _is_widget_mode(self):
+            """
+            Widget chỉ hoạt động khi tool của todo_board là 'cursor'.
+            Không phụ thuộc trạng thái lock (để bạn có thể chỉnh ngay khi chuyển sang cursor).
+            """
+            parent = self.parent
+            if not parent:
+                return False
+            tool = getattr(parent, "tool", "cursor")
+            return (tool == "cursor") and globals().get("todo_draw_mode", False)
     
     def on_touch_down(self, touch):
-        if self.is_locked:
+        if not self._is_widget_mode():
             return False
         
         # Kiểm tra content area double-click
@@ -526,6 +569,7 @@ class DraggableResizableWidget(MDCard):
             self.resize_start_pos = (touch.x, touch.y)
             self.resize_start_size = self.size
             self.resize_start_pos_widget = self.pos
+            touch.grab(self)
             return True
         
         # Kiểm tra header (drag)
@@ -537,7 +581,7 @@ class DraggableResizableWidget(MDCard):
         return super().on_touch_down(touch)
 
     def on_touch_move(self, touch):
-        if self.is_locked:
+        if not self._is_widget_mode():
             return False
         
         # Drag widget
@@ -546,73 +590,60 @@ class DraggableResizableWidget(MDCard):
             return True
         
         # Resize widget
-        if self.resize_active and self.active_handle:
+        if touch.grab_current is self and self.resize_active and self.active_handle:
             wx, wy = self.resize_start_pos_widget
             ww, wh = self.resize_start_size
-            
-            # **Tính delta từ điểm bắt đầu**
-            start_x, start_y = self.resize_start_pos
-            dx = touch.x - start_x
-            dy = touch.y - start_y
-            
-            new_w, new_h = ww, wh
-            new_x, new_y = wx, wy
-            
+
+            left   = wx
+            right  = wx + ww
+            bottom = wy
+            top    = wy + wh
+
+            min_w = dp(100)
+            min_h = dp(80)
+
+            mx, my = touch.pos
             handle = self.active_handle
-            
-            # **Các handle ở góc trên**
-            if handle == 'tr':  # Top-right - giữ left & bottom
-                new_w = max(dp(100), ww + dx)
-                new_h = max(dp(80), wh + dy)
-                new_y = wy - dy
-                # x không thay đổi (giữ left)
-                
-            elif handle == 'tl':  # Top-left - giữ right & bottom
-                new_w = max(dp(100), ww - dx)
-                new_h = max(dp(80), wh + dy)
-                new_x = wx + dx
-                new_y = wy - dy
-                
-            # **Các handle ở góc dưới**
-            elif handle == 'br':  # Bottom-right - giữ left & top
-                new_w = max(dp(100), ww + dx)
-                new_h = max(dp(80), wh - dy)
-                # x, y không thay đổi (giữ left & top)
-                
-            elif handle == 'bl':  # Bottom-left - giữ right & top
-                new_w = max(dp(100), ww - dx)
-                new_h = max(dp(80), wh - dy)
-                new_x = wx + dx
-                # y không thay đổi (giữ top)
-                
-            # **Các handle ở cạnh**
-            elif handle == 't':  # Top edge - giữ bottom & width
-                new_h = max(dp(80), wh + dy)
-                new_y = wy - dy
-                # x, w không thay đổi
-                
-            elif handle == 'b':  # Bottom edge - giữ top & width
-                new_h = max(dp(80), wh - dy)
-                # x, y, w không thay đổi
-                
-            elif handle == 'l':  # Left edge - giữ right & height
-                new_w = max(dp(100), ww - dx)
-                new_x = wx + dx
-                # y, h không thay đổi
-                
-            elif handle == 'r':  # Right edge - giữ left & height
-                new_w = max(dp(100), ww + dx)
-                # x, y, h không thay đổi
-            
-            # **Áp dụng size & pos cùng lúc**
+
+            if handle == 'br':
+                right = max(left + min_w, mx)
+                bottom = min(top - min_h, my)
+
+            elif handle == 'bl':
+                left = min(right - min_w, mx)
+                bottom = min(top - min_h, my)
+
+            elif handle == 'tr':
+                right = max(left + min_w, mx)
+                top = max(bottom + min_h, my)
+
+            elif handle == 'tl':
+                left = min(right - min_w, mx)
+                top = max(bottom + min_h, my)
+
+            elif handle == 'r':
+                right = max(left + min_w, mx)
+
+            elif handle == 'l':
+                left = min(right - min_w, mx)
+
+            elif handle == 't':
+                top = max(bottom + min_h, my)
+
+            elif handle == 'b':
+                bottom = min(top - min_h, my)
+
+            new_w = right - left
+            new_h = top - bottom
+
+            self.pos = (left, bottom)
             self.size = (new_w, new_h)
-            self.pos = (new_x, new_y)
             return True
         
         return super().on_touch_move(touch)
 
     def on_touch_up(self, touch):
-        if self.is_locked:
+        if not self._is_widget_mode():
             return False
         
         if touch.grab_current is self:
@@ -869,7 +900,7 @@ class DrawCanvas(MDAnchorLayout):
         self.strokes.clear()
         self.current_stroke = None
 
-class Whiteboard(MDAnchorLayout):
+class Whiteboard(MDFloatLayout):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
@@ -877,7 +908,7 @@ class Whiteboard(MDAnchorLayout):
         self.strokes = {}
 
         self.current_stroke = None
-        self.tool = "pen"   # "pen" | "eraser"
+        self.tool = "cursor"   # "pen" | "eraser"
 
         self.pen_color = (0, 0, 0, 1)
         self.pen_width = 2.5
@@ -892,7 +923,10 @@ class Whiteboard(MDAnchorLayout):
     # --------------------------------------------------
 
     def on_touch_down(self, touch):
-        if not todo_draw_mode: return False
+        if super().on_touch_down(touch):
+            return True
+
+        if not todo_draw_mode or self.tool == "cursor": return False
 
         if not self.collide_point(*touch.pos):
             return False
@@ -909,8 +943,8 @@ class Whiteboard(MDAnchorLayout):
 
         return False
 
-    def on_touch_move(self, touch):
-        if not todo_draw_mode: return False
+    def on_touch_move(self, touch):        
+        if not todo_draw_mode or self.tool == "cursor": return False
         
         if not self.collide_point(*touch.pos):
             return False
@@ -928,7 +962,7 @@ class Whiteboard(MDAnchorLayout):
         return False
 
     def on_touch_up(self, touch):
-        if not todo_draw_mode: return False
+        if not todo_draw_mode or self.tool == "cursor": return False
 
         if self.tool == "pen" and self.current_stroke:
             if self.on_stroke_finished:
@@ -1302,11 +1336,23 @@ class ChatApp(MDApp):
         self.todo_toolbar_button_overlay.bind(minimum_width=self.todo_toolbar_button_overlay.setter("width"))
         Window.bind(width=self.set_ttbgo_width)
 
+        self.todo_cursor_button = ToolButton(
+            icon="cursor-default",
+            theme_icon_color="Custom",
+            md_bg_color=[0, 0, 0, 0],
+            icon_color='black',
+            size_hint=(None, None),
+            pos_hint={"center_y": 0.5},
+            on_release=self.switch_todo_tool,
+            ripple_color=boxbg,
+            tool='cursor'
+        )
+        
         self.todo_pen_button = ToolButton(
             icon="pencil",
             theme_icon_color="Custom",
             md_bg_color=[0, 0, 0, 0],
-            icon_color='black',
+            icon_color='white',
             size_hint=(None, None),
             pos_hint={"center_y": 0.5},
             on_release=self.switch_todo_tool,
@@ -1342,16 +1388,19 @@ class ChatApp(MDApp):
             size_hint=(None, None),
             pos_hint={"center_y": 0.5},
             ripple_color=boxbg,
+            on_release=lambda instance: self.todo_board.add_widget(DraggableResizableWidget(norm_uuid_hyphen(str(uuid4().hex)), pos=(100, self.todo_board.height-200)))
         )
 
-        self.last_todo_tool=self.todo_pen_button
+        self.last_todo_tool=self.todo_cursor_button
 
         self.todo_toolbar.add_widget(self.todo_toolbar_background_overlay)
         self.todo_toolbar_background_overlay.add_widget(self.todo_toolbar_button_background)
         self.todo_toolbar_background_overlay.add_widget(self.todo_toolbar_button_overlay)
+        self.todo_toolbar_button_overlay.add_widget(self.todo_cursor_button)
         self.todo_toolbar_button_overlay.add_widget(self.todo_pen_button)
         self.todo_toolbar_button_overlay.add_widget(self.todo_eraser_button)
         self.todo_toolbar_button_overlay.add_widget(self.todo_scroll_lock_button)
+        self.todo_toolbar_button_overlay.add_widget(self.todo_more_button)
 
         todo_layout.add_widget(self.todo_top_bar)
         todo_layout.add_widget(MDBoxLayout(size_hint=(1, None), md_bg_color=btn, height=dp(2), pos_hint={"center_x": 0.5}))  # Spacer
@@ -1819,6 +1868,7 @@ class ChatApp(MDApp):
         self.sm.get_screen("to-do").children[0].add_widget(self.todo_toolbar)
         self.sm.get_screen("to-do").children[0].remove_widget(self.todo_new_whiteboard_button)
         if todo_draw_mode: self.enable_todo(self.todo_scroll_lock_button)
+        if self.last_todo_tool!=self.todo_cursor_button: self.switch_todo_tool(self.todo_cursor_button)
 
         url = (
             f"{SUPABASE_URL}/rest/v1/draw"
@@ -1832,6 +1882,7 @@ class ChatApp(MDApp):
             return
 
         self.todo_board.clear_all()
+        self.todo_board.clear_widgets()
 
         cw, ch = self.todo_board.width, self.todo_board.height
 
