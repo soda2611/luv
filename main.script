@@ -1388,7 +1388,7 @@ class ChatApp(MDApp):
             size_hint=(None, None),
             pos_hint={"center_y": 0.5},
             ripple_color=boxbg,
-            on_release=lambda instance: self.todo_board.add_widget(DraggableResizableWidget(norm_uuid_hyphen(str(uuid4().hex)), pos=(100, self.todo_board.height-200)))
+            on_release=lambda instance: self.todo_board.add_widget(DraggableResizableWidget(norm_uuid_hyphen(str(uuid4().hex)), pos=(dp(100), self.todo_board.height-dp(200))))
         )
 
         self.last_todo_tool=self.todo_cursor_button
