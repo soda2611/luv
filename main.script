@@ -451,7 +451,7 @@ class DraggableResizableWidget(MDCard):
             self._handles_group.add(Color(0.75, 0.75, 0.75, 1))
             self._handles_group.add(Line(
                 rounded_rectangle=(x, y, w, h, h/2),
-                width=1
+                width=dp(1)
             ))
 
             if draw_x:
@@ -464,12 +464,12 @@ class DraggableResizableWidget(MDCard):
                 self._handles_group.add(Line(
                     points=[cx - size/2, cy - size/2,
                             cx + size/2, cy + size/2],
-                    width=1.5
+                    width=dp(1.5)
                 ))
                 self._handles_group.add(Line(
                     points=[cx - size/2, cy + size/2,
                             cx + size/2, cy - size/2],
-                    width=1.5
+                    width=dp(1.5)
                 ))
 
         # ---- TOP ----
@@ -885,9 +885,16 @@ class DrawCanvas(MDAnchorLayout):
             st = self.strokes[stroke_id]
             bx = st["bbox"]
 
+            # 1) Lọc sớm bằng bbox
             if not self._circle_hits_bbox(cx, cy, r, bx):
                 continue
 
+            # 2) Kiểm tra chính xác với polyline
+            pen_w = getattr(st["line"], "width", 1.0)
+            if not self._circle_hits_polyline(cx, cy, r, st["points"], pen_w):
+                continue
+
+            # 3) Thật sự trúng → xoá stroke
             self._remove_stroke(stroke_id)
 
     def _remove_stroke(self, stroke_id):
@@ -908,6 +915,62 @@ class DrawCanvas(MDAnchorLayout):
         dx = cx - nx
         dy = cy - ny
         return dx * dx + dy * dy <= r * r
+
+    @staticmethod
+    def _point_segment_dist2(px, py, x1, y1, x2, y2):
+        """
+        Bình phương khoảng cách từ điểm P(px, py) tới đoạn thẳng AB(x1, y1)-(x2, y2)
+        """
+        vx, vy = x2 - x1, y2 - y1
+        wx, wy = px - x1, py - y1
+        len2 = vx * vx + vy * vy
+        if len2 == 0:
+            # A trùng B: khoảng cách điểm-điểm
+            dx, dy = px - x1, py - y1
+            return dx * dx + dy * dy
+        t = (wx * vx + wy * vy) / len2
+        if t < 0:
+            # gần A
+            dx, dy = px - x1, py - y1
+        elif t > 1:
+            # gần B
+            dx, dy = px - x2, py - y2
+        else:
+            # chiếu vuông góc xuống AB
+            projx = x1 + t * vx
+            projy = y1 + t * vy
+            dx, dy = px - projx, py - projy
+        return dx * dx + dy * dy
+
+    @staticmethod
+    def _circle_hits_polyline(cx, cy, r, points, pen_w=0.0):
+        """
+        Trả về True nếu vòng tròn eraser (cx, cy, r) chạm vào polyline 'points'.
+        Có cộng thêm nửa bề rộng nét để cảm giác tẩy tự nhiên hơn.
+        """
+        if not points:
+            return False
+        # bán kính hiệu dụng
+        eff_r = r + max(1.0, float(pen_w)) / 2.0
+        r2 = eff_r * eff_r
+
+        # kiểm từng đoạn
+        for i in range(1, len(points)):
+            x1, y1 = points[i - 1]
+            x2, y2 = points[i]
+            d2 = DrawCanvas._point_segment_dist2(cx, cy, x1, y1, x2, y2)
+            if d2 <= r2:
+                return True
+
+        # kiểm luôn hai đầu mút (phòng vài stroke rất ngắn)
+        dx, dy = cx - points[0][0], cy - points[0][1]
+        if dx * dx + dy * dy <= r2:
+            return True
+        dx, dy = cx - points[-1][0], cy - points[-1][1]
+        if dx * dx + dy * dy <= r2:
+            return True
+
+        return False
 
     # --------------------------------------------------
     # REALTIME API
@@ -1115,12 +1178,15 @@ class Whiteboard(MDFloatLayout):
     def _erase_at(self, cx, cy):
         r = self.eraser_radius
 
-        # copy keys để remove an toàn
         for stroke_id in list(self.strokes.keys()):
             st = self.strokes[stroke_id]
             bx = st["bbox"]
 
             if not self._circle_hits_bbox(cx, cy, r, bx):
+                continue
+
+            pen_w = getattr(st["line"], "width", 1.0)
+            if not self._circle_hits_polyline(cx, cy, r, st["points"], pen_w):
                 continue
 
             self._remove_stroke(stroke_id)
@@ -1143,6 +1209,47 @@ class Whiteboard(MDFloatLayout):
         dx = cx - nx
         dy = cy - ny
         return dx * dx + dy * dy <= r * r
+
+    @staticmethod
+    def _point_segment_dist2(px, py, x1, y1, x2, y2):
+        vx, vy = x2 - x1, y2 - y1
+        wx, wy = px - x1, py - y1
+        len2 = vx * vx + vy * vy
+        if len2 == 0:
+            dx, dy = px - x1, py - y1
+            return dx * dx + dy * dy
+        t = (wx * vx + wy * vy) / len2
+        if t < 0:
+            dx, dy = px - x1, py - y1
+        elif t > 1:
+            dx, dy = px - x2, py - y2
+        else:
+            projx = x1 + t * vx
+            projy = y1 + t * vy
+            dx, dy = px - projx, py - projy
+        return dx * dx + dy * dy
+
+    @staticmethod
+    def _circle_hits_polyline(cx, cy, r, points, pen_w=0.0):
+        if not points:
+            return False
+        eff_r = r + max(1.0, float(pen_w)) / 2.0
+        r2 = eff_r * eff_r
+
+        for i in range(1, len(points)):
+            x1, y1 = points[i - 1]
+            x2, y2 = points[i]
+            d2 = Whiteboard._point_segment_dist2(cx, cy, x1, y1, x2, y2)
+            if d2 <= r2:
+                return True
+
+        dx, dy = cx - points[0][0], cy - points[0][1]
+        if dx * dx + dy * dy <= r2:
+            return True
+        dx, dy = cx - points[-1][0], cy - points[-1][1]
+        if dx * dx + dy * dy <= r2:
+            return True
+        return False
 
     # --------------------------------------------------
     # REALTIME API
