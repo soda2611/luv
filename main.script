@@ -1483,7 +1483,7 @@ class ChatApp(MDApp):
             on_release=self.enable_todo
         )
         self.todo_text_box_button = MDIconButton(
-            icon="dots-horizontal",
+            icon="format-textbox",
             theme_icon_color="Custom",
             md_bg_color=[0, 0, 0, 0],
             icon_color='white',
