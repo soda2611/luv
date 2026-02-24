@@ -52,7 +52,6 @@ import websockets
 import ssl
 import json
 import re
-from math import hypot
 from datetime import datetime
 from kivymd.app import MDApp
 from kivymd.uix.boxlayout import MDBoxLayout
@@ -76,7 +75,7 @@ from kivy.metrics import dp
 from kivy.utils import platform
 from kivy.uix.widget import Widget
 from kivy.properties import *
-from kivy.graphics import Line, PushMatrix, PopMatrix, Translate, Color, InstructionGroup, Scale, RoundedRectangle
+from kivy.graphics import Line, PushMatrix, PopMatrix, Translate, Color, InstructionGroup, Scale, Ellipse, RoundedRectangle
 from plyer import notification
 from uuid import uuid4, UUID
 
@@ -994,41 +993,6 @@ class Whiteboard(MDFloatLayout):
         self.on_stroke_finished = None
         self.on_stroke_deleted = None
 
-        # ===== ZOOM STATE =====
-        self.scale_factor = 1.0
-        self.min_scale = 0.5
-        self.max_scale = 3.0
-
-        self._pinch_initial_dist = None
-        self._pinch_initial_scale = 1.0
-        self._active_touches = []
-
-        with self.canvas.before:
-            PushMatrix()
-            self._translate = Translate(0, 0, 0)
-            self._scale = Scale(1, 1, 1)
-
-        with self.canvas.after:
-            PopMatrix()
-
-    def _apply_scale(self, new_scale, center):
-        new_scale = max(self.min_scale, min(self.max_scale, new_scale))
-
-        if new_scale == self.scale_factor:
-            return
-
-        cx, cy = center
-
-        dx = cx - (cx * new_scale / self.scale_factor)
-        dy = cy - (cy * new_scale / self.scale_factor)
-
-        self.scale_factor = new_scale
-        self._scale.x = new_scale
-        self._scale.y = new_scale
-
-        self._translate.x += dx
-        self._translate.y += dy
-
     # --- Selection helpers ---
     def is_widget_mode(self):
         return (self.tool == "cursor") and globals().get("todo_draw_mode", False)
@@ -1048,27 +1012,6 @@ class Whiteboard(MDFloatLayout):
     # --------------------------------------------------
 
     def on_touch_down(self, touch):
-        if not todo_draw_mode:
-            # ---- CTRL + SCROLL ----
-            if touch.is_mouse_scrolling:
-                if 'ctrl' in Window.modifiers:
-                    if touch.button == 'scrollup':
-                        self._apply_scale(self.scale_factor * 1.1, touch.pos)
-                    elif touch.button == 'scrolldown':
-                        self._apply_scale(self.scale_factor * 0.9, touch.pos)
-                    return True
-                return False
-
-            # ---- PINCH START ----
-            self._active_touches.append(touch)
-
-            if len(self._active_touches) == 2:
-                t1, t2 = self._active_touches
-                self._pinch_initial_dist = hypot(
-                    t2.x - t1.x,
-                    t2.y - t1.y
-                )
-                self._pinch_initial_scale = self.scale_factor
         # Cho child xử lý trước (nếu click trúng một widget)
         if super().on_touch_down(touch):
             return True
@@ -1102,25 +1045,7 @@ class Whiteboard(MDFloatLayout):
 
         return False
 
-    def on_touch_move(self, touch):
-        if not todo_draw_mode and len(self._active_touches) == 2:
-            t1, t2 = self._active_touches
-
-            dist = hypot(t2.x - t1.x, t2.y - t1.y)
-
-            if self._pinch_initial_dist:
-                scale_ratio = dist / self._pinch_initial_dist
-                new_scale = self._pinch_initial_scale * scale_ratio
-
-                center = (
-                    (t1.x + t2.x) / 2,
-                    (t1.y + t2.y) / 2
-                )
-
-                self._apply_scale(new_scale, center)
-
-            return True
-        
+    def on_touch_move(self, touch):        
         if not todo_draw_mode or self.tool == "cursor": return False
         
         if not self.collide_point(*touch.pos):
@@ -1139,19 +1064,11 @@ class Whiteboard(MDFloatLayout):
         return False
 
     def on_touch_up(self, touch):
-        if touch in self._active_touches:
-            self._active_touches.remove(touch)
-
-        if len(self._active_touches) < 2:
-            self._pinch_initial_dist = None
-
-        if not todo_draw_mode or self.tool == "cursor":
-            return False
+        if not todo_draw_mode or self.tool == "cursor": return False
 
         if self.tool == "pen" and self.current_stroke:
             if self.on_stroke_finished:
                 self.on_stroke_finished(self.current_stroke)
-
         self.current_stroke = None
         return False
 
@@ -1566,7 +1483,7 @@ class ChatApp(MDApp):
             on_release=self.enable_todo
         )
         self.todo_text_box_button = MDIconButton(
-            icon="format-textbox",
+            icon="dots-horizontal",
             theme_icon_color="Custom",
             md_bg_color=[0, 0, 0, 0],
             icon_color='white',
