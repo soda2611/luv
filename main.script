@@ -804,7 +804,7 @@ class SVArea(Widget):
 
         rgb = (np.dstack((R, G, B)) * 255).astype(np.uint8)
 
-        tex = Texture.create(size=(w, h))
+        tex = Texture.create(size=(w, h), colorfmt='rgb')
         tex.blit_buffer(rgb.tobytes(), colorfmt='rgb', bufferfmt='ubyte')
         tex.wrap = "clamp_to_edge"
 
@@ -869,7 +869,7 @@ class HueSlider(Widget):
         RGB = RGB.astype(np.uint8)
         RGB = np.repeat(RGB, w, axis=0)
 
-        texture = Texture.create(size=(w, h))
+        texture = Texture.create(size=(w, h), colorfmt='rgb')
         texture.blit_buffer(RGB.tobytes(), colorfmt='rgb', bufferfmt='ubyte')
         self.rect.texture = texture
 
