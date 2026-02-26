@@ -2003,10 +2003,10 @@ class ChatApp(MDApp):
         instance.icon = "lock-open" if not todo_draw_mode else "lock"
         self.todo_scroll.do_scroll, todo_draw_mode = [True, False] if todo_draw_mode else [False, True]
         self.todo_board.deselect_all()
+        self.switch_todo_tool(self.last_todo_tool)
         self.todo_cursor_button.disabled = not todo_draw_mode
         self.todo_pen_button.disabled = not todo_draw_mode
         self.todo_eraser_button.disabled = not todo_draw_mode
-        self.todo_text_box_button.disabled = not todo_draw_mode
     
     def switch_todo_tool(self, instance):
         self.last_todo_tool.icon_color='white'
@@ -2017,6 +2017,8 @@ class ChatApp(MDApp):
         self.todo_board.tool=instance.tool
         if self.todo_board.tool != 'cursor':
             self.todo_board.deselect_all()
+            self.todo_text_box_button.disabled = True
+        else: self.todo_text_box_button.disabled = not todo_draw_mode
         if self.todo_board.tool == 'pen':
             self.todo_top_bar.remove_widget(self.set_pen_color_button)
             self.todo_top_bar.remove_widget(self.set_pen_width_slider)
