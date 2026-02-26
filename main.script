@@ -2039,7 +2039,7 @@ class ChatApp(MDApp):
             "id": norm_uuid_hyphen(stroke["id"]),
             "sender": self.user_id,
             "points": points,
-            "width": dp(2),  # scale theo canvas
+            "width": self.draw_canvas.pen_width,  # scale theo canvas
             "color": list(self.draw_canvas.pen_color),
             "created_at": time.strftime("%H:%M"),
             "date": normalize_date(self.lookup_date)
@@ -2073,7 +2073,7 @@ class ChatApp(MDApp):
             "id": norm_uuid_hyphen(stroke["id"]),
             "sender": self.user_id,
             "points": points,
-            "width": dp(2),
+            "width": self.todo_board.pen_width,  # scale theo canvas
             "color": list(self.todo_board.pen_color),
             "created_at": time.strftime("%H:%M"),
             "date": normalize_date(self.lookup_date),
