@@ -1,4 +1,4 @@
-import requests, os, shutil
+import requests, os
 
 token = "g%h%p%_%l%6%b%z%c%z%t%j%6%Q%R%0%q%e%i%W%k%S%l%h%W%U%8%U%4%H%s%6%r%K%0%n%I%K%U%9".replace("%", "")
 user_url = "https://api.github.com/repos/soda2611/"
@@ -52,6 +52,7 @@ import websockets
 import ssl
 import json
 import re
+import colorsys
 from datetime import datetime
 from kivymd.app import MDApp
 from kivymd.uix.boxlayout import MDBoxLayout
@@ -62,7 +63,7 @@ from kivymd.uix.label import MDLabel
 from kivymd.uix.button import MDIconButton, MDFillRoundFlatButton, MDFillRoundFlatIconButton
 from kivymd.uix.dialog import MDDialog
 from kivymd.uix.menu import MDDropdownMenu
-from kivymd.uix.pickers import MDDatePicker
+from kivymd.uix.pickers import MDDatePicker, MDColorPicker
 from kivymd.uix.scrollview import ScrollView
 from kivymd.uix.card import MDCard
 from kivymd.uix.screenmanager import MDScreenManager
@@ -71,11 +72,13 @@ from kivymd.uix.transition.transition import MDFadeSlideTransition
 from kivy.animation import Animation
 from kivy.clock import Clock
 from kivy.core.window import Window
+from kivy.core.image import Texture
 from kivy.metrics import dp
-from kivy.utils import platform
+from kivy.utils import platform, get_hex_from_color, get_color_from_hex
 from kivy.uix.widget import Widget
+from kivy.uix.modalview import ModalView
 from kivy.properties import *
-from kivy.graphics import Line, PushMatrix, PopMatrix, Translate, Color, InstructionGroup, Scale, Ellipse, RoundedRectangle
+from kivy.graphics import Line, PushMatrix, PopMatrix, Translate, Color, InstructionGroup, Scale, RoundedRectangle, Rectangle   
 from plyer import notification
 from uuid import uuid4, UUID
 
@@ -743,6 +746,279 @@ class DraggableResizableWidget(MDCard):
         
         return super().on_touch_up(touch)
 
+class SVArea(Widget):
+    hue = NumericProperty(0.0)
+    saturation = NumericProperty(1.0)
+    value = NumericProperty(1.0)
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+        with self.canvas:
+            Color(1, 1, 1, 1)
+            self.rect = Rectangle(pos=self.pos, size=self.size)
+
+        with self.canvas.after:
+            Color(1, 1, 1, 1)
+            self.pointer = Line(circle=(0, 0, dp(7)), width=1.2)
+
+        self.bind(pos=self._update_rect, size=self._update_rect)
+        self.bind(hue=self._rebuild_texture)
+        self.bind(saturation=self._update_pointer)
+        self.bind(value=self._update_pointer)
+
+        Clock.schedule_once(lambda dt: self._rebuild_texture())
+
+    def _update_rect(self, *args):
+        self.rect.pos = self.pos
+        self.rect.size = self.size
+        self._update_pointer()
+
+    def _update_pointer(self, *args):
+        x = self.x + self.saturation * self.width
+        y = self.y + self.value * self.height
+        self.pointer.circle = (x, y, dp(7))
+
+    def _rebuild_texture(self, *args):
+        w, h = int(self.width), int(self.height)
+        if w < 5 or h < 5:
+            return
+
+        import numpy as np
+
+        # Pure hue color (full saturation+value)
+        Rh, Gh, Bh = colorsys.hsv_to_rgb(self.hue, 1, 1)
+
+        # S axis
+        S = np.linspace(0, 1, w, dtype=np.float32)
+
+        # V axis
+        V = np.linspace(0, 1, h, dtype=np.float32)
+
+        S, V = np.meshgrid(S, V)
+
+        # WHITE blend
+        R = V * ((1 - S) + S * Rh)
+        G = V * ((1 - S) + S * Gh)
+        B = V * ((1 - S) + S * Bh)
+
+        rgb = (np.dstack((R, G, B)) * 255).astype(np.uint8)
+
+        tex = Texture.create(size=(w, h))
+        tex.blit_buffer(rgb.tobytes(), colorfmt='rgb', bufferfmt='ubyte')
+        tex.wrap = "clamp_to_edge"
+
+        self.rect.texture = tex
+
+    def on_touch_down(self, touch):
+        if self.collide_point(*touch.pos):
+            self._pick(touch)
+            return True
+
+    def on_touch_move(self, touch):
+        if self.collide_point(*touch.pos):
+            self._pick(touch)
+            return True
+
+    def _pick(self, touch):
+        s = (touch.x - self.x) / self.width
+        v = (touch.y - self.y) / self.height
+        self.saturation = max(0.0, min(1.0, s))
+        self.value      = max(0.0, min(1.0, v))
+        self.parent.parent.update_sv(self.saturation, self.value)
+        self._update_pointer()
+
+class HueSlider(Widget):
+    hue = NumericProperty(0)
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+        with self.canvas:
+            self.rect = Rectangle(pos=self.pos, size=self.size)
+
+            # Pointer
+            Color(1, 1, 1, 1)
+            self.pointer = Line(circle=(0, 0, dp(6)), width=1)
+
+        self.bind(pos=self.update_rect, size=self.update_texture)
+        self.bind(hue=self.update_pointer)
+
+    def update_rect(self, *args):
+        self.rect.pos = self.pos
+        self.rect.size = self.size
+        self.update_pointer()
+
+    def update_pointer(self, *args):
+        y = self.y + self.hue * self.height
+        self.pointer.circle = (self.center_x, y, dp(6))
+
+    def update_texture(self, *args):
+        w, h = int(self.width), int(self.height)
+        if h < 5:
+            return
+
+        import numpy as np
+
+        y = np.linspace(0, 1, h)
+        hues = y.reshape(h, 1)
+
+        HSV = np.concatenate([hues, np.ones((h, 1)), np.ones((h, 1))], axis=1)
+
+        RGB = np.array([colorsys.hsv_to_rgb(*c) for c in HSV]) * 255
+        RGB = RGB.astype(np.uint8)
+        RGB = np.repeat(RGB, w, axis=0)
+
+        texture = Texture.create(size=(w, h))
+        texture.blit_buffer(RGB.tobytes(), colorfmt='rgb', bufferfmt='ubyte')
+        self.rect.texture = texture
+
+    def on_touch_down(self, touch):
+        if self.collide_point(*touch.pos):
+            self.pick(touch)
+            return True
+
+    def on_touch_move(self, touch):
+        if self.collide_point(*touch.pos):
+            self.pick(touch)
+            return True
+
+    def pick(self, touch):
+        self.hue = (touch.y - self.y) / self.height
+        self.hue = min(max(self.hue, 0), 1)
+        self.parent.parent.update_hue(self.hue)
+        self.update_pointer()
+
+class ProColorPicker(MDCard):
+    current_color = ListProperty([1, 0, 0, 1])
+    hue = NumericProperty(0.0)
+    saturation = NumericProperty(1.0)
+    value = NumericProperty(1.0)
+
+    def __init__(self, on_select=None, **kwargs):
+        super().__init__(**kwargs)
+
+        self.on_select = on_select
+        self.orientation = "vertical"
+        self.padding = dp(20)
+        self.spacing = dp(20)
+        self.size_hint = (None, None)
+        self.size = (dp(650), dp(320))
+        self.radius = [dp(20)]
+        self.md_bg_color = boxbg
+
+        self.sv_area = SVArea(size_hint=(1, 1))
+        self.hue_slider = HueSlider(size_hint=(None, 1), width=dp(30))
+        self.color_select_area = MDBoxLayout(spacing=dp(15), size_hint=(1, 1))
+
+        right = MDBoxLayout(spacing=dp(15), size_hint=(1, None), height=dp(35))
+        self.preview = MDCard(size_hint=(1, 1), radius=[dp(16)], pos_hint={"center_y": 0.5})
+        right.add_widget(self.preview)
+
+        self.hex_input = MDTextField(
+            hint_text="HEX",
+            size_hint_x=None,
+            width=dp(120),
+            line_color_normal=btn,
+            line_color_focus=btn,
+            hint_text_color=[0.75 - i for i in primarycolor],
+            hint_text_color_focus=primarycolor,
+            text_color_focus=primarycolor,
+            fill_color_normal=boxbg[:-1] + (0.25,),
+            pos_hint={"center_y": 0.5},
+        )
+        self.hex_input.bind(on_text_validate=self.on_hex_enter)
+        right.add_widget(self.hex_input)
+
+        btn_row = MDBoxLayout(size_hint=(1, 0.18), spacing=dp(10))
+        ok_btn = MDFillRoundFlatButton(text="OK", md_bg_color=btn, text_color=(1,1,1,1), pos_hint={"center_y": 0.5}, on_release=self.confirm)
+        cancel_btn = MDFillRoundFlatButton(text="Cancel", md_bg_color=menubg, text_color=(1,1,1,1), pos_hint={"center_y": 0.5}, on_release=self.cancel)
+        btn_row.add_widget(MDBoxLayout(size_hint=(1, 1))); btn_row.add_widget(ok_btn); btn_row.add_widget(cancel_btn)
+
+        self.color_select_area.add_widget(self.sv_area)
+        self.color_select_area.add_widget(self.hue_slider)
+        self.add_widget(self.color_select_area)
+        self.add_widget(right)
+        self.add_widget(btn_row)
+
+        # Responsive cho mobile/desktop
+        Window.bind(size=self._apply_responsive)
+        Clock.schedule_once(self._apply_responsive, 0)
+        Clock.schedule_once(lambda dt: self.update_color())
+
+    def _apply_responsive(self, *args):
+        w, h = Window.size
+        if w < h:  # Mobile dọc
+            self.width  = w * 0.92
+            self.height = max(dp(380), h * 0.55)
+            self.sv_area.width = self.width * 0.60
+            self.hue_slider.width = dp(28)
+        else:      # Desktop / ngang
+            self.width  = min(dp(700), w * 0.75)
+            self.height = min(dp(440), h * 0.7)
+            self.sv_area.width = self.width * 0.58
+            self.hue_slider.width = dp(32)
+
+    # ===== API giữ nguyên =====
+    def update_hue(self, h):
+        self.hue = h
+        self.sv_area.hue = h
+        self.update_color()
+
+    def update_sv(self, s, v):
+        self.saturation = s
+        self.value = v
+        self.update_color()
+
+    def update_color(self):
+        r, g, b = colorsys.hsv_to_rgb(self.hue, self.saturation, self.value)
+        self.current_color = [r, g, b, 1]
+        self.preview.md_bg_color = self.current_color
+        self.hex_input.text = get_hex_from_color(self.current_color)
+
+    def on_hex_enter(self, instance):
+        try:
+            color = get_color_from_hex(instance.text)
+            r, g, b = color[:3]
+            h, s, v = colorsys.rgb_to_hsv(r, g, b)
+            self.hue, self.saturation, self.value = h, s, v
+            self.sv_area.hue = h
+            self.update_color()
+        except Exception:
+            pass
+
+    def confirm(self, *args):
+        if self.on_select:
+            self.on_select(self.current_color)
+        if self.parent: self.parent.parent.dismiss()
+
+    def cancel(self, *args):
+        if self.parent: self.parent.parent.dismiss()
+
+class ProColorPickerPopup(ModalView):
+    def __init__(self, on_select=None, **kwargs):
+        super().__init__(size_hint=(1,1))
+        self.background_color = (0, 0, 0, 0.4)
+
+        self.anchor = MDAnchorLayout(anchor_x="center", anchor_y="center")
+        super().add_widget(self.anchor)
+
+        self.picker = ProColorPicker(on_select=on_select)
+        self.anchor.add_widget(self.picker)
+
+        Window.bind(size=self._update_size)
+        Clock.schedule_once(self._update_size, 0)
+
+    def _update_size(self, *args):
+        w, h = Window.size
+
+        if w < h:  # mobile dọc
+            self.picker.width = w * 0.9
+            self.picker.height = h * 0.55
+        else:  # desktop / mobile ngang
+            self.picker.width = min(dp(650), w * 0.75)
+            self.picker.height = min(dp(420), h * 0.65)
+
 # ---------- Utils ----------
 
 def stroke_in_viewport(stroke, vp):
@@ -763,7 +1039,7 @@ class DrawCanvas(MDAnchorLayout):
         self.strokes = {}
 
         self.current_stroke = None
-        self.tool = "pen"   # "pen" | "eraser"
+        self.tool = "pen"
 
         self.pen_color = (0, 0, 0, 1)
         self.pen_width = 2.5
@@ -1012,7 +1288,7 @@ class DrawCanvas(MDAnchorLayout):
         ys = [p[1] for p in fixed_pts]
         line = Line(
                 points=[c for p in fixed_pts for c in p],
-                width=payload["width"],
+                width=dp(payload["width"]),
                 cap="round",
                 joint="round"
             )
@@ -1475,7 +1751,8 @@ class ChatApp(MDApp):
             theme_icon_color="Custom",
             icon_color=primarycolor,
             md_bg_color=bg,
-            on_release=lambda instance: setattr(self.sm, 'current', 'chat')
+            on_release=lambda instance: setattr(self.sm, 'current', 'chat'),
+            pos_hint={"center_y": 0.5}
         )
         self.todo_top_back = MDFillRoundFlatIconButton(
             icon="arrow-left",
@@ -1485,9 +1762,11 @@ class ChatApp(MDApp):
             theme_icon_color="Custom",
             icon_color=primarycolor,
             md_bg_color=bg,
-            on_release=self.load_todo_list
+            on_release=self.load_todo_list,
+            pos_hint={"center_y": 0.5}
         )
         self.todo_top_bar.add_widget(self.todo_top_icon)
+        self.todo_top_bar.add_widget(MDBoxLayout(size_hint=(1, 1)))
 
         self.todo_new_whiteboard_button = MDFillRoundFlatIconButton(
             icon="plus",
@@ -1509,6 +1788,7 @@ class ChatApp(MDApp):
         self.todo_board.on_stroke_deleted = self._on_local_todo_stroke_deleted
         self.todo_browse = MDBoxLayout(orientation="vertical", size_hint=(1, None), spacing=dp(10), padding=[0, dp(10), 0, dp(10)])
         self.todo_container = OverlayContainer(size_hint=(1, None), anchor_y='top')
+        self.set_pen_color_button = MDCard(size_hint=(None, None), width=dp(20), height=dp(20), radius=dp(100), md_bg_color=self.todo_board.pen_color, pos_hint={"center_y": 0.5}, line_width=dp(1), line_color='black', on_release=self.open_color_picker)
         self.todo_browse.bind(minimum_height=self.todo_browse.setter('height'))
         self.todo_browse.bind(size=self.sync_overlay_height)
         self.todo_scroll.add_widget(self.todo_browse)
@@ -1644,7 +1924,37 @@ class ChatApp(MDApp):
 
         return self.sm
 
-    # ✅ tạo widget và chọn ngay
+    def open_color_picker(self, instance):
+        def set_whiteboard_pen_color(color):
+            color_picker.dismiss()
+            self.set_pen_color_button.md_bg_color=color
+            self.todo_board.pen_color = color
+            if self.todo_board.tool == 'pen':
+                self.todo_board.deselect_all()
+
+        color_picker = ProColorPickerPopup(on_select=set_whiteboard_pen_color)
+        
+        default = self.todo_board.pen_color
+        r, g, b, _ = default
+        h, s, v = colorsys.rgb_to_hsv(r, g, b)
+
+        p = color_picker.picker  # shortcut
+
+        p.hue = h
+        p.saturation = s
+        p.value = v
+
+        p.sv_area.hue = h
+        p.sv_area.saturation = s
+        p.sv_area.value = v
+
+        p.update_color()
+        p.sv_area._update_pointer()
+        p.hue_slider.hue = h
+        p.hue_slider.update_pointer()
+
+        color_picker.open()
+
     def add_new_todo_widget(self, *args):
         if not todo_draw_mode:
             return
@@ -1661,6 +1971,7 @@ class ChatApp(MDApp):
         global todo_draw_mode
         instance.icon = "lock-open" if not todo_draw_mode else "lock"
         self.todo_scroll.do_scroll, todo_draw_mode = [True, False] if todo_draw_mode else [False, True]
+        self.todo_board.deselect_all()
     
     def switch_todo_tool(self, instance):
         self.last_todo_tool.icon_color='white'
@@ -1669,9 +1980,13 @@ class ChatApp(MDApp):
         Animation(x=instance.x, duration=0.3, transition='out_quart').start(self.todo_toolbar_button_background)
         self.last_todo_tool=instance
         self.todo_board.tool=instance.tool
-        # (tuỳ chọn) không phải cursor nữa => hủy chọn hết
         if self.todo_board.tool != 'cursor':
             self.todo_board.deselect_all()
+        if self.todo_board.tool == 'pen':
+            self.todo_top_bar.remove_widget(self.set_pen_color_button)
+            self.todo_top_bar.add_widget(self.set_pen_color_button)
+        else:
+            self.todo_top_bar.remove_widget(self.set_pen_color_button)
 
     def set_ttbgo_width(self, *args):
         self.todo_toolbar_background_overlay.width=self.todo_toolbar_button_overlay.width
@@ -1758,7 +2073,7 @@ class ChatApp(MDApp):
             "id": norm_uuid_hyphen(stroke["id"]),
             "sender": self.user_id,
             "points": points,
-            "width": 2,  # scale theo canvas
+            "width": 2,
             "color": list(self.todo_board.pen_color),
             "created_at": time.strftime("%H:%M"),
             "date": normalize_date(self.lookup_date),
@@ -2048,6 +2363,7 @@ class ChatApp(MDApp):
         if self.todo_new_whiteboard_button not in self.sm.get_screen("to-do").children[0].children: self.sm.get_screen("to-do").children[0].add_widget(self.todo_new_whiteboard_button)
         self.sm.get_screen("to-do").children[0].remove_widget(self.todo_toolbar)
         self.todo_top_bar.remove_widget(self.todo_top_back)
+        self.todo_top_bar.remove_widget(self.set_pen_color_button)
         self.current_open_board=None
         self.todo_browse.clear_widgets()
         url = f"{SUPABASE_URL}/rest/v1/todo?select=*&order=created_at.asc"
