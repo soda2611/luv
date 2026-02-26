@@ -1120,7 +1120,7 @@ class DrawCanvas(MDAnchorLayout):
         group.add(Color(*self.pen_color))
         line = Line(
             points=[x, y],
-            width=self.pen_width,
+            width=dp(self.pen_width),
             cap="round",
             joint="round"
         )
@@ -1418,7 +1418,7 @@ class Whiteboard(MDFloatLayout):
         group.add(Color(*self.pen_color))
         line = Line(
             points=[x, y],
-            width=self.pen_width,
+            width=dp(self.pen_width),
             cap="round",
             joint="round"
         )
