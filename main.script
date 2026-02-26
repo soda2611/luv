@@ -805,7 +805,7 @@ class SVArea(Widget):
         rgb = (np.dstack((R, G, B)) * 255).astype(np.uint8)
 
         tex = Texture.create(size=(w, h))
-        tex.blit_buffer(rgb.tobytes(), colorfmt='rgba', bufferfmt='ubyte')
+        tex.blit_buffer(rgb.tobytes(), colorfmt='rgb', bufferfmt='ubyte')
         tex.wrap = "clamp_to_edge"
 
         self.rect.texture = tex
@@ -870,7 +870,7 @@ class HueSlider(Widget):
         RGB = np.repeat(RGB, w, axis=0)
 
         texture = Texture.create(size=(w, h))
-        texture.blit_buffer(RGB.tobytes(), colorfmt='rgba', bufferfmt='ubyte')
+        texture.blit_buffer(RGB.tobytes(), colorfmt='rgb', bufferfmt='ubyte')
         self.rect.texture = texture
 
     def on_touch_down(self, touch):
