@@ -1566,7 +1566,7 @@ class Whiteboard(MDFloatLayout):
         ys = [p[1] for p in fixed_pts]
         line = Line(
                 points=[c for p in fixed_pts for c in p],
-                width=payload["width"],
+                width=dp(payload["width"]),
                 cap="round",
                 joint="round"
             )
