@@ -63,7 +63,8 @@ from kivymd.uix.label import MDLabel
 from kivymd.uix.button import MDIconButton, MDFillRoundFlatButton, MDFillRoundFlatIconButton
 from kivymd.uix.dialog import MDDialog
 from kivymd.uix.menu import MDDropdownMenu
-from kivymd.uix.pickers import MDDatePicker, MDColorPicker
+from kivymd.uix.pickers import MDDatePicker
+from kivymd.uix.slider.slider import MDSlider
 from kivymd.uix.scrollview import ScrollView
 from kivymd.uix.card import MDCard
 from kivymd.uix.screenmanager import MDScreenManager
@@ -894,6 +895,7 @@ class ProColorPicker(MDCard):
     hue = NumericProperty(0.0)
     saturation = NumericProperty(1.0)
     value = NumericProperty(1.0)
+    alpha = NumericProperty(1.0)
 
     def __init__(self, on_select=None, **kwargs):
         super().__init__(**kwargs)
@@ -910,6 +912,12 @@ class ProColorPicker(MDCard):
         self.sv_area = SVArea(size_hint=(1, 1))
         self.hue_slider = HueSlider(size_hint=(None, 1), width=dp(30))
         self.color_select_area = MDBoxLayout(spacing=dp(15), size_hint=(1, 1))
+
+        self.opacity_slider = MDBoxLayout(size_hint=(1, None), height=dp(35))
+        self.opacity_slider.slider = MDSlider(step=0.1, hint=False, color=menubg, thumb_color_active=btn, thumb_color_inactive=btn, show_off=False, pos_hint={"center_y": 0.5}, min=0, max=1, value=self.alpha)
+        self.opacity_slider.slider.bind(value=self.update_alpha)
+        self.opacity_slider.add_widget(MDLabel(text=f"Độ trong suốt: 1", theme_text_color="Custom", text_color=primarycolor, size_hint=(None, None), height=dp(35), font_style="Caption", halign="center", valign="center"))
+        self.opacity_slider.add_widget(self.opacity_slider.slider)
 
         right = MDBoxLayout(spacing=dp(15), size_hint=(1, None), height=dp(35))
         self.preview = MDCard(size_hint=(1, 1), radius=[dp(16)], pos_hint={"center_y": 0.5})
@@ -938,6 +946,7 @@ class ProColorPicker(MDCard):
         self.color_select_area.add_widget(self.sv_area)
         self.color_select_area.add_widget(self.hue_slider)
         self.add_widget(self.color_select_area)
+        self.add_widget(self.opacity_slider)
         self.add_widget(right)
         self.add_widget(btn_row)
 
@@ -970,9 +979,14 @@ class ProColorPicker(MDCard):
         self.value = v
         self.update_color()
 
+    def update_alpha(self, instance, value):
+        self.alpha = round(value, 2)
+        self.opacity_slider.children[1].text = f"Độ trong suốt: {self.alpha}"
+        self.update_color()
+
     def update_color(self):
         r, g, b = colorsys.hsv_to_rgb(self.hue, self.saturation, self.value)
-        self.current_color = [r, g, b, 1]
+        self.current_color = [r, g, b, self.alpha]
         self.preview.md_bg_color = self.current_color
         self.hex_input.text = get_hex_from_color(self.current_color)
 
@@ -1788,7 +1802,12 @@ class ChatApp(MDApp):
         self.todo_board.on_stroke_deleted = self._on_local_todo_stroke_deleted
         self.todo_browse = MDBoxLayout(orientation="vertical", size_hint=(1, None), spacing=dp(10), padding=[0, dp(10), 0, dp(10)])
         self.todo_container = OverlayContainer(size_hint=(1, None), anchor_y='top')
-        self.set_pen_color_button = MDCard(size_hint=(None, None), width=dp(20), height=dp(20), radius=dp(100), md_bg_color=self.todo_board.pen_color, pos_hint={"center_y": 0.5}, line_width=dp(1), line_color='black', on_release=self.open_color_picker)
+        self.set_pen_color_button = MDCard(size_hint=(None, None), width=dp(20), height=dp(20), radius=dp(100), md_bg_color=self.todo_board.pen_color, pos_hint={"center_y": 0.5}, line_width=dp(1.5), line_color=btn, on_release=self.open_color_picker)
+        self.set_pen_width_slider = MDBoxLayout(orientation="vertical", size_hint=(None, 1), width=dp(100))
+        self.set_pen_width_slider.slider = MDSlider(step=0.1, hint=False, color=menubg, thumb_color_active=btn, thumb_color_inactive=btn, show_off=False, pos_hint={"center_y": 0.5}, min=2.5, max=10, value=self.todo_board.pen_width)
+        self.set_pen_width_slider.slider.bind(value=self.update_width_value)
+        self.set_pen_width_slider.add_widget(MDLabel(text=f"Độ dày bút: {self.todo_board.pen_width}", theme_text_color="Custom", text_color=primarycolor, size_hint=(None, None), height=dp(12), font_style="Caption", halign="center"))
+        self.set_pen_width_slider.add_widget(self.set_pen_width_slider.slider)
         self.todo_browse.bind(minimum_height=self.todo_browse.setter('height'))
         self.todo_browse.bind(size=self.sync_overlay_height)
         self.todo_scroll.add_widget(self.todo_browse)
@@ -1924,6 +1943,10 @@ class ChatApp(MDApp):
 
         return self.sm
 
+    def update_width_value(self, instance, value):
+        self.todo_board.pen_width=value
+        self.set_pen_width_slider.children[1].text=f"Độ dày bút: {value:.1f}"
+
     def open_color_picker(self, instance):
         def set_whiteboard_pen_color(color):
             color_picker.dismiss()
@@ -1984,9 +2007,12 @@ class ChatApp(MDApp):
             self.todo_board.deselect_all()
         if self.todo_board.tool == 'pen':
             self.todo_top_bar.remove_widget(self.set_pen_color_button)
+            self.todo_top_bar.remove_widget(self.set_pen_width_slider)
             self.todo_top_bar.add_widget(self.set_pen_color_button)
+            self.todo_top_bar.add_widget(self.set_pen_width_slider)
         else:
             self.todo_top_bar.remove_widget(self.set_pen_color_button)
+            self.todo_top_bar.remove_widget(self.set_pen_width_slider)
 
     def set_ttbgo_width(self, *args):
         self.todo_toolbar_background_overlay.width=self.todo_toolbar_button_overlay.width
@@ -2364,6 +2390,7 @@ class ChatApp(MDApp):
         self.sm.get_screen("to-do").children[0].remove_widget(self.todo_toolbar)
         self.todo_top_bar.remove_widget(self.todo_top_back)
         self.todo_top_bar.remove_widget(self.set_pen_color_button)
+        self.todo_top_bar.remove_widget(self.set_pen_width_slider)
         self.current_open_board=None
         self.todo_browse.clear_widgets()
         url = f"{SUPABASE_URL}/rest/v1/todo?select=*&order=created_at.asc"
