@@ -2039,7 +2039,7 @@ class ChatApp(MDApp):
             "id": norm_uuid_hyphen(stroke["id"]),
             "sender": self.user_id,
             "points": points,
-            "width": 2,  # scale theo canvas
+            "width": dp(2),  # scale theo canvas
             "color": list(self.draw_canvas.pen_color),
             "created_at": time.strftime("%H:%M"),
             "date": normalize_date(self.lookup_date)
@@ -2073,7 +2073,7 @@ class ChatApp(MDApp):
             "id": norm_uuid_hyphen(stroke["id"]),
             "sender": self.user_id,
             "points": points,
-            "width": 2,
+            "width": dp(2),
             "color": list(self.todo_board.pen_color),
             "created_at": time.strftime("%H:%M"),
             "date": normalize_date(self.lookup_date),
@@ -2406,7 +2406,7 @@ class ChatApp(MDApp):
             self.draw_canvas.draw_remote_stroke({
                 "stroke_id": norm_uuid_hyphen(row["id"]),
                 "points": pts,
-                "width": 2,
+                "width": dp(2),
                 "color": tuple(row["color"]),
             })
 
@@ -2447,7 +2447,7 @@ class ChatApp(MDApp):
             self.todo_board.draw_remote_stroke({
                 "stroke_id": norm_uuid_hyphen(row["id"]),
                 "points": pts,
-                "width": 2,
+                "width": dp(2),
                 "color": tuple(row["color"]),
             })
 
@@ -2692,7 +2692,7 @@ class ChatApp(MDApp):
             self.draw_canvas.draw_remote_stroke({
                 "stroke_id": norm_uuid_hyphen(r["id"]),
                 "points": pts,
-                "width": 2,
+                "width": dp(2),
                 "color": tuple(r.get("color", (0,0,0,1)))
             })
 
@@ -2716,7 +2716,7 @@ class ChatApp(MDApp):
             self.todo_board.draw_remote_stroke({
                 "stroke_id": norm_uuid_hyphen(r["id"]),
                 "points": pts,
-                "width": 2,
+                "width": dp(2),
                 "color": tuple(r.get("color", (0,0,0,1)))
             })
 
