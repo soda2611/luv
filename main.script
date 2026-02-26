@@ -1829,8 +1829,8 @@ class ChatApp(MDApp):
         self.todo_toolbar_button_background = MDCard(
             md_bg_color=boxbg,
             size_hint=(None, None),
-            height=dp(50),
-            width=dp(50),
+            height=dp(48),
+            width=dp(48),
             radius=dp(25),
             pos_hint={"center_y": 0.5, "x": 0}
         )
@@ -1853,7 +1853,9 @@ class ChatApp(MDApp):
             pos_hint={"center_y": 0.5},
             on_release=self.switch_todo_tool,
             ripple_color=boxbg,
-            tool='cursor'
+            tool='cursor',
+            disabled=not todo_draw_mode,
+            md_bg_color_disabled=btn
         )
         
         self.todo_pen_button = ToolButton(
@@ -1865,7 +1867,9 @@ class ChatApp(MDApp):
             pos_hint={"center_y": 0.5},
             on_release=self.switch_todo_tool,
             ripple_color=boxbg,
-            tool='pen'
+            tool='pen',
+            disabled=not todo_draw_mode,
+            md_bg_color_disabled=btn
         )
         self.todo_eraser_button = ToolButton(
             icon="eraser",
@@ -1876,7 +1880,9 @@ class ChatApp(MDApp):
             pos_hint={"center_y": 0.5},
             on_release=self.switch_todo_tool,
             ripple_color=boxbg,
-            tool='eraser'
+            tool='eraser',
+            disabled=not todo_draw_mode,
+            md_bg_color_disabled=btn
         )
         self.todo_scroll_lock_button = ToolButton(
             icon="lock",
@@ -1896,7 +1902,9 @@ class ChatApp(MDApp):
             size_hint=(None, None),
             pos_hint={"center_y": 0.5},
             ripple_color=boxbg,
-            on_release=lambda instance: self.add_new_todo_widget()  # ✅ chọn luôn sau khi tạo
+            on_release=lambda instance: self.add_new_todo_widget(),  # ✅ chọn luôn sau khi tạo
+            disabled=not todo_draw_mode,
+            md_bg_color_disabled=btn
         )
         self.todo_more_button = MDIconButton(
             icon="dots-horizontal",
@@ -1995,6 +2003,10 @@ class ChatApp(MDApp):
         instance.icon = "lock-open" if not todo_draw_mode else "lock"
         self.todo_scroll.do_scroll, todo_draw_mode = [True, False] if todo_draw_mode else [False, True]
         self.todo_board.deselect_all()
+        self.todo_cursor_button.disabled = not todo_draw_mode
+        self.todo_pen_button.disabled = not todo_draw_mode
+        self.todo_eraser_button.disabled = not todo_draw_mode
+        self.todo_text_box_button.disabled = not todo_draw_mode
     
     def switch_todo_tool(self, instance):
         self.last_todo_tool.icon_color='white'
