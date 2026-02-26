@@ -2406,7 +2406,7 @@ class ChatApp(MDApp):
             self.draw_canvas.draw_remote_stroke({
                 "stroke_id": norm_uuid_hyphen(row["id"]),
                 "points": pts,
-                "width": dp(2),
+                "width": dp(row["width"]),
                 "color": tuple(row["color"]),
             })
 
@@ -2447,7 +2447,7 @@ class ChatApp(MDApp):
             self.todo_board.draw_remote_stroke({
                 "stroke_id": norm_uuid_hyphen(row["id"]),
                 "points": pts,
-                "width": dp(2),
+                "width": dp(row["width"]),
                 "color": tuple(row["color"]),
             })
 
@@ -2692,7 +2692,7 @@ class ChatApp(MDApp):
             self.draw_canvas.draw_remote_stroke({
                 "stroke_id": norm_uuid_hyphen(r["id"]),
                 "points": pts,
-                "width": dp(2),
+                "width": dp(r["width"]),
                 "color": tuple(r.get("color", (0,0,0,1)))
             })
 
@@ -2716,7 +2716,7 @@ class ChatApp(MDApp):
             self.todo_board.draw_remote_stroke({
                 "stroke_id": norm_uuid_hyphen(r["id"]),
                 "points": pts,
-                "width": dp(2),
+                "width": dp(r["width"]),
                 "color": tuple(r.get("color", (0,0,0,1)))
             })
 
