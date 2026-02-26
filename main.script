@@ -334,7 +334,7 @@ class HandlesOverlay(Widget):
                 (w - handle_size, h/2 - handle_size/2, handle_size, handle_size),  # r
             ]
             for hx, hy, hw, hh in handles:
-                Line(rectangle=(hx, hy, hw, hh), width=1)
+                Line(rectangle=(hx, hy, hw, hh), width=dp(1))
 
 class DraggableResizableWidget(MDCard):
     """Widget có thể kéo và thay đổi kích thước"""
@@ -760,7 +760,7 @@ class SVArea(Widget):
 
         with self.canvas.after:
             Color(1, 1, 1, 1)
-            self.pointer = Line(circle=(0, 0, dp(7)), width=1.2)
+            self.pointer = Line(circle=(0, 0, dp(7)), width=dp(1.2))
 
         self.bind(pos=self._update_rect, size=self._update_rect)
         self.bind(hue=self._rebuild_texture)
@@ -839,7 +839,7 @@ class HueSlider(Widget):
 
             # Pointer
             Color(1, 1, 1, 1)
-            self.pointer = Line(circle=(0, 0, dp(6)), width=1)
+            self.pointer = Line(circle=(0, 0, dp(6)), width=(dp(1.2)))
 
         self.bind(pos=self.update_rect, size=self.update_texture)
         self.bind(hue=self.update_pointer)
