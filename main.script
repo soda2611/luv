@@ -395,9 +395,11 @@ class DraggableResizableWidget(MDCard):
         self.bind(text=self._update_content_text)
         self.bind(text_size=self._update_content_text)
         self.bind(text_color=self._update_content_text_color)
+        self.bind(text_align=self._update_content_text)
 
     def _update_content_text(self, *args):
         self.content_label.text = f"[size={int(dp(self.text_size))}]{format_text_with_fonts(self.text)}[/size]"
+        self.content_label.halign = self.text_align
 
     def _update_content_text_color(self, *args):
         self.content_label.text_color = self.text_color
@@ -928,7 +930,7 @@ class ProColorPicker(MDCard):
         self.opacity_slider.add_widget(self.opacity_slider.slider)
 
         right = MDBoxLayout(spacing=dp(15), size_hint=(1, None), height=dp(35))
-        self.preview = MDCard(size_hint=(1, 1), radius=[dp(16)], pos_hint={"center_y": 0.5})
+        self.preview = MDCard(size_hint=(1, 1), line_color=btn, radius=[dp(16)], pos_hint={"center_y": 0.5})
         right.add_widget(self.preview)
 
         self.hex_input = MDTextField(
@@ -1369,6 +1371,9 @@ class Whiteboard(MDFloatLayout):
                     child.selected = True
                     self.selecting_widget = widget
                     MDApp.get_running_app().set_widget_color_button.md_bg_color = child.md_bg_color
+                    MDApp.get_running_app().set_widget_text_color_button.md_bg_color = child.text_color
+                    MDApp.get_running_app().set_text_size_slider.children[1].text=f"Kích thước chữ: {child.text_size:.1f}"
+                    MDApp.get_running_app().set_text_size_slider.slider.value = child.text_size
                 else:
                     child.selected = False
 
@@ -1786,11 +1791,8 @@ class ChatApp(MDApp):
             on_release=lambda instance: setattr(self.sm, 'current', 'chat'),
             pos_hint={"center_y": 0.5}
         )
-        self.todo_top_back = MDFillRoundFlatIconButton(
+        self.todo_top_back = MDIconButton(
             icon="arrow-left",
-            text=format_text_with_fonts("\U0001F496 ngha và hmn", True),
-            theme_text_color="Custom",
-            text_color=primarycolor,
             theme_icon_color="Custom",
             icon_color=primarycolor,
             md_bg_color=bg,
@@ -1827,7 +1829,8 @@ class ChatApp(MDApp):
         self.set_text_size_slider.slider = MDSlider(step=0.5, hint=False, color=menubg, thumb_color_active=btn, thumb_color_inactive=btn, show_off=False, pos_hint={"center_y": 0.5}, min=10, max=100)
         self.set_text_size_slider.slider.bind(value=self.update_text_size_value)
         self.set_text_size_slider.add_widget(MDLabel(theme_text_color="Custom", text_color=primarycolor, size_hint=(1, None), height=dp(12), font_style="Caption", halign="center"))
-        self.set_text_size_slider.add_widget(self.set_text_size_slider.slider)        
+        self.set_text_size_slider.add_widget(self.set_text_size_slider.slider)
+        self.set_text_align_button = MDIconButton(icon_size=dp(20), theme_icon_color="Custom", icon_color=primarycolor, md_bg_color=bg, on_release=self.switch_text_align, pos_hint={"center_y": 0.5})
         self.set_pen_color_button = MDCard(size_hint=(None, None), width=dp(20), height=dp(20), radius=dp(100), md_bg_color=self.todo_board.pen_color, pos_hint={"center_y": 0.5}, line_width=dp(1.5), line_color=btn, on_release=lambda instance: self.open_color_picker(instance, "pen"))
         self.set_pen_width_slider = MDBoxLayout(orientation="vertical", size_hint=(None, 1), width=dp(100))
         self.set_pen_width_slider.slider = MDSlider(step=0.1, hint=False, color=menubg, thumb_color_active=btn, thumb_color_inactive=btn, show_off=False, pos_hint={"center_y": 0.5}, min=2.5, max=10, value=self.todo_board.pen_width)
@@ -1977,19 +1980,30 @@ class ChatApp(MDApp):
 
         return self.sm
 
+    def switch_text_align(self, instance):
+        alignments = ["left", "center", "right", "justify"]
+        current_index = alignments.index(self.todo_board.selecting_widget.text_align)
+        new_index = (current_index + 1) % len(alignments)
+        new_align = alignments[new_index]
+        self.todo_board.selecting_widget.text_align = new_align
+        self.set_text_align_button.icon = "format-align-{}".format(new_align)
+
     def format_widget_toolbar(self, instance, value):
         if value:
             if self.set_widget_color_button.parent is None:
                 self.todo_top_bar.add_widget(self.set_widget_color_button)
                 self.todo_top_bar.add_widget(self.set_widget_text_color_button)
+                self.todo_top_bar.add_widget(self.set_text_align_button)
                 self.todo_top_bar.add_widget(self.set_text_size_slider)
                 Clock.schedule_once(lambda dt: setattr(self.set_widget_color_button, 'md_bg_color', self.todo_board.selecting_widget.md_bg_color))
                 Clock.schedule_once(lambda dt: setattr(self.set_widget_text_color_button, 'md_bg_color', self.todo_board.selecting_widget.text_color))
                 Clock.schedule_once(lambda dt: setattr(self.set_text_size_slider.slider, 'value', self.todo_board.selecting_widget.text_size))
+                Clock.schedule_once(lambda dt: setattr(self.set_text_align_button, 'icon', "format-align-{}".format(self.todo_board.selecting_widget.text_align)))
         else:
             if self.set_widget_color_button.parent is not None:
                 self.todo_top_bar.remove_widget(self.set_widget_color_button)
                 self.todo_top_bar.remove_widget(self.set_widget_text_color_button)
+                self.todo_top_bar.remove_widget(self.set_text_align_button)
                 self.todo_top_bar.remove_widget(self.set_text_size_slider)
 
     def update_width_value(self, instance, value):
