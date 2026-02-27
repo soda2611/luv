@@ -621,7 +621,7 @@ class DraggableResizableWidget(MDCard):
             md_bg_color=boxbg,
         )
         dialog.open()
-    
+
     def _is_widget_mode(self):
         """
         Widget chỉ hoạt động khi tool của todo_board là 'cursor'.
@@ -946,6 +946,7 @@ class ProColorPicker(MDCard):
             pos_hint={"center_y": 0.5},
         )
         self.hex_input.bind(on_text_validate=self.on_hex_enter)
+        self.hex_input.bind(focus=self.on_hex_enter)
         right.add_widget(self.hex_input)
 
         btn_row = MDBoxLayout(size_hint=(1, 0.18), spacing=dp(10))
@@ -1000,7 +1001,7 @@ class ProColorPicker(MDCard):
         self.preview.md_bg_color = self.current_color
         self.hex_input.text = get_hex_from_color(self.current_color)
 
-    def on_hex_enter(self, instance):
+    def on_hex_enter(self, instance, *args):
         try:
             color = get_color_from_hex(instance.text)
             r, g, b = color[:3]
@@ -1374,6 +1375,7 @@ class Whiteboard(MDFloatLayout):
                     MDApp.get_running_app().set_widget_text_color_button.md_bg_color = child.text_color
                     MDApp.get_running_app().set_text_size_slider.children[1].text=f"Kích thước chữ: {child.text_size:.1f}"
                     MDApp.get_running_app().set_text_size_slider.slider.value = child.text_size
+                    MDApp.get_running_app().set_text_align_button.icon = f"format-align-{child.text_align}"
                 else:
                     child.selected = False
 
@@ -2041,7 +2043,7 @@ class ChatApp(MDApp):
         r, g, b, _ = default
         h, s, v = colorsys.rgb_to_hsv(r, g, b)
 
-        p = color_picker.picker  # shortcut
+        p = color_picker.picker
 
         p.hue = h
         p.saturation = s
@@ -2050,6 +2052,8 @@ class ChatApp(MDApp):
         p.sv_area.hue = h
         p.sv_area.saturation = s
         p.sv_area.value = v
+
+        p.opacity_slider.slider.value = default[3]
 
         p.update_color()
         p.sv_area._update_pointer()
