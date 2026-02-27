@@ -341,6 +341,10 @@ class DraggableResizableWidget(MDCard):
     """Widget có thể kéo và thay đổi kích thước"""
     widget_id = StringProperty('')
     selected = BooleanProperty(False)  # ✅ trạng thái được chọn
+    text_color = ListProperty([0, 0, 0, 1])
+    text_size = NumericProperty(14)
+    text_align = StringProperty("center")
+    text = StringProperty("Double-click để chỉnh sửa")
     
     def __init__(self, widget_id, **kwargs):
         super().__init__(**kwargs)
@@ -369,12 +373,12 @@ class DraggableResizableWidget(MDCard):
         # Content area
         self.content_box = MDBoxLayout(size_hint=(1, 1), orientation="vertical", padding=dp(5), spacing=dp(5))
         self.content_label = MDLabel(
-            text="Double-click để chỉnh sửa",
-            halign="center",
+            text=f"[size={int(dp(self.text_size))}]{format_text_with_fonts(self.text)}[/size]",
+            halign=self.text_align,
             valign="center",
             theme_text_color="Custom",
-            text_color=primarycolor,
-            size_hint=(1, 1)
+            text_color=self.text_color,
+            markup=True,
         )
         self.content_box.add_widget(self.content_label)
 
@@ -388,6 +392,15 @@ class DraggableResizableWidget(MDCard):
         self.bind(size=self._update_handles, pos=self._update_handles)
         # Khi selected đổi → cập nhật visual/handles
         self.bind(selected=self._on_selected_change)
+        self.bind(text=self._update_content_text)
+        self.bind(text_size=self._update_content_text)
+        self.bind(text_color=self._update_content_text_color)
+
+    def _update_content_text(self, *args):
+        self.content_label.text = f"[size={int(dp(self.text_size))}]{format_text_with_fonts(self.text)}[/size]"
+
+    def _update_content_text_color(self, *args):
+        self.content_label.text_color = self.text_color
     
     def _on_selected_change(self, instance, value):
         self.line_color = [0, 0, 0, 0] if not value else btn
@@ -563,7 +576,7 @@ class DraggableResizableWidget(MDCard):
     def _show_edit_dialog(self):
         edit_input = MDTextField(
             hint_text="Nhập nội dung mới",
-            text=self.content_label.text if self.content_label.text != "Double-click để chỉnh sửa" else "",
+            text=self.text if self.text != "Double-click để chỉnh sửa" else "",
             font_name="resources/fonts/segoeui.ttf",
             line_color_normal=boxbg,
             line_color_focus=boxbg,
@@ -579,16 +592,11 @@ class DraggableResizableWidget(MDCard):
             new_text = edit_input.text.strip()
             if new_text:
                 self.content_label.text = new_text
+                self.text = new_text  # cập nhật property để lưu
             dialog.dismiss()
         
         def cancel_edit(instance):
             dialog.dismiss()
-
-        def delete_widget(self, instance):
-            dialog.dismiss()
-            if hasattr(self.parent, 'on_widget_deleted'):
-                self.parent.on_widget_deleted(self.widget_id)
-            self.parent.remove_widget(self)
         
         dialog = MDDialog(
             title="Chỉnh sửa Widget",
@@ -631,7 +639,7 @@ class DraggableResizableWidget(MDCard):
         if self.collide_point(*touch.pos):
             if hasattr(self.parent, "set_selected_widget"):
                 self.parent.set_selected_widget(self)
-        
+
         # Kiểm tra content area double-click
         if (self.content_box.collide_point(*touch.pos) and 
             not self._get_handle_at(touch.pos)):
@@ -644,9 +652,9 @@ class DraggableResizableWidget(MDCard):
         handle = self._get_handle_at(touch.pos)
 
         if handle == 'delete':
+            self.parent.deselect_all()
             if hasattr(self.parent, 'on_widget_deleted'):
                 self.parent.on_widget_deleted(self.widget_id)
-
             if self.parent:
                 self.parent.remove_widget(self)
             return True
@@ -1329,6 +1337,7 @@ class DrawCanvas(MDAnchorLayout):
         self.current_stroke = None
 
 class Whiteboard(MDFloatLayout):
+    selected_widget_exists = BooleanProperty(False)
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
@@ -1346,19 +1355,28 @@ class Whiteboard(MDFloatLayout):
         self.on_stroke_finished = None
         self.on_stroke_deleted = None
 
+        self.selecting_widget = None
+
     # --- Selection helpers ---
     def is_widget_mode(self):
         return (self.tool == "cursor") and globals().get("todo_draw_mode", False)
 
     def set_selected_widget(self, widget):
         for child in self.children:
-            if isinstance(child, DraggableResizableWidget):
-                child.selected = (child is widget)
+            if isinstance(child, DraggableResizableWidget): 
+                if child is widget:
+                    self.selected_widget_exists = True
+                    child.selected = True
+                    self.selecting_widget = widget
+                    MDApp.get_running_app().set_widget_color_button.md_bg_color = child.md_bg_color
+                else:
+                    child.selected = False
 
     def deselect_all(self):
-        for child in self.children:
-            if isinstance(child, DraggableResizableWidget):
-                child.selected = False
+        if self.selected_widget_exists and self.selecting_widget:
+            self.selected_widget_exists = False
+            self.selecting_widget.selected = False
+            self.selecting_widget = None
 
     # --------------------------------------------------
     # PEN / SELECTION
@@ -1800,9 +1818,17 @@ class ChatApp(MDApp):
         self.todo_board.width=dp(100000)
         self.todo_board.on_stroke_finished = self._on_local_todo_stroke_finished
         self.todo_board.on_stroke_deleted = self._on_local_todo_stroke_deleted
+        self.todo_board.bind(selected_widget_exists=self.format_widget_toolbar)
         self.todo_browse = MDBoxLayout(orientation="vertical", size_hint=(1, None), spacing=dp(10), padding=[0, dp(10), 0, dp(10)])
         self.todo_container = OverlayContainer(size_hint=(1, None), anchor_y='top')
-        self.set_pen_color_button = MDCard(size_hint=(None, None), width=dp(20), height=dp(20), radius=dp(100), md_bg_color=self.todo_board.pen_color, pos_hint={"center_y": 0.5}, line_width=dp(1.5), line_color=btn, on_release=self.open_color_picker)
+        self.set_widget_color_button = MDCard(size_hint=(None, None), width=dp(20), height=dp(20), radius=dp(100), pos_hint={"center_y": 0.5}, line_width=dp(1.5), line_color=btn, on_release=lambda instance: self.open_color_picker(instance, "widget"))
+        self.set_widget_text_color_button = MDCard(size_hint=(None, None), width=dp(20), height=dp(20), radius=dp(100), pos_hint={"center_y": 0.5}, line_width=dp(1.5), line_color=btn, on_release=lambda instance: self.open_color_picker(instance, "text"))
+        self.set_text_size_slider = MDBoxLayout(orientation="vertical", size_hint=(None, 1), width=dp(150))
+        self.set_text_size_slider.slider = MDSlider(step=0.5, hint=False, color=menubg, thumb_color_active=btn, thumb_color_inactive=btn, show_off=False, pos_hint={"center_y": 0.5}, min=10, max=100)
+        self.set_text_size_slider.slider.bind(value=self.update_text_size_value)
+        self.set_text_size_slider.add_widget(MDLabel(theme_text_color="Custom", text_color=primarycolor, size_hint=(1, None), height=dp(12), font_style="Caption", halign="center"))
+        self.set_text_size_slider.add_widget(self.set_text_size_slider.slider)        
+        self.set_pen_color_button = MDCard(size_hint=(None, None), width=dp(20), height=dp(20), radius=dp(100), md_bg_color=self.todo_board.pen_color, pos_hint={"center_y": 0.5}, line_width=dp(1.5), line_color=btn, on_release=lambda instance: self.open_color_picker(instance, "pen"))
         self.set_pen_width_slider = MDBoxLayout(orientation="vertical", size_hint=(None, 1), width=dp(100))
         self.set_pen_width_slider.slider = MDSlider(step=0.1, hint=False, color=menubg, thumb_color_active=btn, thumb_color_inactive=btn, show_off=False, pos_hint={"center_y": 0.5}, min=2.5, max=10, value=self.todo_board.pen_width)
         self.set_pen_width_slider.slider.bind(value=self.update_width_value)
@@ -1951,11 +1977,35 @@ class ChatApp(MDApp):
 
         return self.sm
 
+    def format_widget_toolbar(self, instance, value):
+        if value:
+            if self.set_widget_color_button.parent is None:
+                self.todo_top_bar.add_widget(self.set_widget_color_button)
+                self.todo_top_bar.add_widget(self.set_widget_text_color_button)
+                self.todo_top_bar.add_widget(self.set_text_size_slider)
+                Clock.schedule_once(lambda dt: setattr(self.set_widget_color_button, 'md_bg_color', self.todo_board.selecting_widget.md_bg_color))
+                Clock.schedule_once(lambda dt: setattr(self.set_widget_text_color_button, 'md_bg_color', self.todo_board.selecting_widget.text_color))
+                Clock.schedule_once(lambda dt: setattr(self.set_text_size_slider.slider, 'value', self.todo_board.selecting_widget.text_size))
+        else:
+            if self.set_widget_color_button.parent is not None:
+                self.todo_top_bar.remove_widget(self.set_widget_color_button)
+                self.todo_top_bar.remove_widget(self.set_widget_text_color_button)
+                self.todo_top_bar.remove_widget(self.set_text_size_slider)
+
     def update_width_value(self, instance, value):
         self.todo_board.pen_width=value
         self.set_pen_width_slider.children[1].text=f"Độ dày bút: {value:.1f}"
 
-    def open_color_picker(self, instance):
+    def update_text_size_value(self, instance, value):
+        self.todo_board.selecting_widget.text_size=value
+        self.set_text_size_slider.children[1].text=f"Kích thước chữ: {value:.1f}"
+
+    def open_color_picker(self, instance, obj):
+        def set_whiteboard_widget_color(color):
+            color_picker.dismiss()
+            self.set_widget_color_button.md_bg_color=color
+            self.todo_board.selecting_widget.md_bg_color = color
+
         def set_whiteboard_pen_color(color):
             color_picker.dismiss()
             self.set_pen_color_button.md_bg_color=color
@@ -1963,9 +2013,17 @@ class ChatApp(MDApp):
             if self.todo_board.tool == 'pen':
                 self.todo_board.deselect_all()
 
-        color_picker = ProColorPickerPopup(on_select=set_whiteboard_pen_color)
+        def set_whiteboard_widget_text_color(color):
+            color_picker.dismiss()
+            self.set_widget_text_color_button.md_bg_color=color
+            self.todo_board.selecting_widget.text_color = color
+
+        mode={"widget": set_whiteboard_widget_color, "pen": set_whiteboard_pen_color, "text": set_whiteboard_widget_text_color}
+        default_color = {"widget": self.todo_board.selecting_widget.md_bg_color if self.todo_board.selecting_widget else (0, 0, 0, 1), "pen": self.todo_board.pen_color, "text": self.todo_board.selecting_widget.text_color if self.todo_board.selecting_widget else (0, 0, 0, 1)}
+
+        color_picker = ProColorPickerPopup(on_select=mode[obj])
         
-        default = self.todo_board.pen_color
+        default = default_color[obj]
         r, g, b, _ = default
         h, s, v = colorsys.rgb_to_hsv(r, g, b)
 
@@ -1995,8 +2053,7 @@ class ChatApp(MDApp):
             pos=(dp(100), self.todo_board.height - dp(200))
         )
         self.todo_board.add_widget(w)
-        if hasattr(self.todo_board, "set_selected_widget"):
-            self.todo_board.set_selected_widget(w)
+        self.todo_board.set_selected_widget(w)
     
     def enable_todo(self, instance):
         global todo_draw_mode
