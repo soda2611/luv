@@ -79,7 +79,7 @@ from kivy.utils import platform, get_hex_from_color, get_color_from_hex
 from kivy.uix.widget import Widget
 from kivy.uix.modalview import ModalView
 from kivy.properties import *
-from kivy.graphics import Line, PushMatrix, PopMatrix, Translate, Color, InstructionGroup, Scale, RoundedRectangle, Rectangle   
+from kivy.graphics import Line, PushMatrix, PopMatrix, Translate, Color, InstructionGroup, Scale, RoundedRectangle, Rectangle, Rotate
 from plyer import notification
 from uuid import uuid4, UUID
 
@@ -313,30 +313,6 @@ class FarDay(MDLabel):
     is_far = BooleanProperty(False)
     start_day = StringProperty('01/01/0001')
 
-class HandlesOverlay(Widget):
-    def __init__(self, owner, **kwargs):
-        super().__init__(**kwargs)
-        self.owner = owner  # nếu sau này cần tham chiếu ngược
-
-    def redraw(self):
-        self.canvas.clear()
-        with self.canvas:
-            Color(0.8, 0.8, 0.8, 0.6)
-            handle_size = dp(10)
-            w, h = self.size
-            handles = [
-                (0,               h - handle_size, handle_size, handle_size),  # tl
-                (w - handle_size, h - handle_size, handle_size, handle_size),  # tr
-                (0,               0,               handle_size, handle_size),  # bl
-                (w - handle_size, 0,               handle_size, handle_size),  # br
-                (w/2 - handle_size/2, h - handle_size, handle_size, handle_size),  # t
-                (w/2 - handle_size/2, 0,               handle_size, handle_size),  # b
-                (0,               h/2 - handle_size/2, handle_size, handle_size),  # l
-                (w - handle_size, h/2 - handle_size/2, handle_size, handle_size),  # r
-            ]
-            for hx, hy, hw, hh in handles:
-                Line(rectangle=(hx, hy, hw, hh), width=dp(1))
-
 class DraggableResizableWidget(MDCard):
     """Widget có thể kéo và thay đổi kích thước"""
     widget_id = StringProperty('')
@@ -345,6 +321,7 @@ class DraggableResizableWidget(MDCard):
     text_size = NumericProperty(14)
     text_align = StringProperty("center")
     text = StringProperty("Double-click để chỉnh sửa")
+    angle = NumericProperty(0)
     
     def __init__(self, widget_id, **kwargs):
         super().__init__(**kwargs)
@@ -381,7 +358,6 @@ class DraggableResizableWidget(MDCard):
             markup=True,
         )
         self.content_box.add_widget(self.content_label)
-
         self.add_widget(self.content_box)
         
         # --- FIX STENCIL: dùng InstructionGroup riêng cho handles ---
@@ -389,13 +365,30 @@ class DraggableResizableWidget(MDCard):
         self.canvas.after.add(self._handles_group)
 
         # Vẽ resize handles ở các góc khi pos/size đổi
-        self.bind(size=self._update_handles, pos=self._update_handles)
+        self.bind(angle=self._update_handles, size=self._update_handles, pos=self._update_handles)
+        self.bind(angle=self._update_angle, size=self._update_angle, pos=self._update_angle)
         # Khi selected đổi → cập nhật visual/handles
         self.bind(selected=self._on_selected_change)
         self.bind(text=self._update_content_text)
         self.bind(text_size=self._update_content_text)
         self.bind(text_color=self._update_content_text_color)
         self.bind(text_align=self._update_content_text)
+
+    def _update_angle(self, *args):
+        self.canvas.before.clear()
+        self.canvas.after.clear()
+        self.content_box.canvas.before.clear()
+        self.content_box.canvas.after.clear()
+        self.content_label.canvas.before.clear()
+        self.content_label.canvas.after.clear()
+        with self.canvas.before, self.content_box.canvas.before, self.content_label.canvas.before:
+            PushMatrix()
+            Rotate(angle=self.angle, origin=self.center)
+
+        with self.canvas.after, self.content_box.canvas.after, self.content_label.canvas.after:
+            PopMatrix()
+
+        self.canvas.after.add(self._handles_group)
 
     def _update_content_text(self, *args):
         self.content_label.text = f"[size={int(dp(self.text_size))}]{format_text_with_fonts(self.text)}[/size]"
@@ -697,7 +690,7 @@ class DraggableResizableWidget(MDCard):
             top    = wy + wh
 
             min_w = dp(100)
-            min_h = dp(80)
+            min_h = dp(50)
 
             mx, my = touch.pos
             handle = self.active_handle
@@ -1081,7 +1074,7 @@ class DrawCanvas(MDAnchorLayout):
             PushMatrix()
             Translate(0, self.height)
             Scale(1, -1, 1)
-
+            
         with self.canvas.after:
             PopMatrix()
 
@@ -1372,7 +1365,7 @@ class Whiteboard(MDFloatLayout):
                     MDApp.get_running_app().set_widget_color_button.md_bg_color = child.md_bg_color
                     MDApp.get_running_app().set_widget_text_color_button.md_bg_color = child.text_color
                     MDApp.get_running_app().set_widget_line_color_button.md_bg_color = child.line_color
-                    MDApp.get_running_app().set_text_size_slider.children[1].text=f"Kích thước chữ: {child.text_size:.1f}"
+                    MDApp.get_running_app().set_text_size_slider.children[1].text=f"Cỡ chữ: {child.text_size:.1f}"
                     MDApp.get_running_app().set_text_size_slider.slider.value = child.text_size
                     MDApp.get_running_app().set_text_align_button.icon = f"format-align-{child.text_align}"
                 else:
@@ -1827,8 +1820,8 @@ class ChatApp(MDApp):
         self.set_widget_color_button = MDCard(size_hint=(None, None), width=dp(20), height=dp(20), radius=dp(100), pos_hint={"center_y": 0.5}, line_width=dp(1.5), line_color=btn, on_release=lambda instance: self.open_color_picker(instance, "widget"))
         self.set_widget_text_color_button = MDCard(size_hint=(None, None), width=dp(20), height=dp(20), radius=dp(100), pos_hint={"center_y": 0.5}, line_width=dp(1.5), line_color=btn, on_release=lambda instance: self.open_color_picker(instance, "text"))
         self.set_widget_line_color_button = MDCard(size_hint=(None, None), width=dp(20), height=dp(20), radius=dp(100), pos_hint={"center_y": 0.5}, line_width=dp(1.5), line_color=btn, on_release=lambda instance: self.open_color_picker(instance, "line"))
-        self.set_text_size_slider = MDBoxLayout(orientation="vertical", size_hint=(None, 1), width=dp(150))
-        self.set_text_size_slider.slider = MDSlider(step=0.5, hint=False, color=menubg, thumb_color_active=btn, thumb_color_inactive=btn, show_off=False, pos_hint={"center_y": 0.5}, min=10, max=100)
+        self.set_text_size_slider = MDBoxLayout(orientation="vertical", size_hint=(None, 1), width=dp(90))
+        self.set_text_size_slider.slider = MDSlider(step=0.5, hint=False, color=menubg, thumb_color_active=btn, thumb_color_inactive=btn, show_off=False, pos_hint={"center_y": 0.5}, min=8, max=120)
         self.set_text_size_slider.slider.bind(value=self.update_text_size_value)
         self.set_text_size_slider.add_widget(MDLabel(theme_text_color="Custom", text_color=primarycolor, size_hint=(1, None), height=dp(12), font_style="Caption", halign="center"))
         self.set_text_size_slider.add_widget(self.set_text_size_slider.slider)
@@ -2017,7 +2010,7 @@ class ChatApp(MDApp):
 
     def update_text_size_value(self, instance, value):
         self.todo_board.selecting_widget.text_size=value
-        self.set_text_size_slider.children[1].text=f"Kích thước chữ: {value:.1f}"
+        self.set_text_size_slider.children[1].text=f"Cỡ chữ: {value:.1f}"
 
     def open_color_picker(self, instance, obj):
         def set_whiteboard_widget_color(color):
@@ -2490,6 +2483,7 @@ class ChatApp(MDApp):
         self.todo_top_bar.remove_widget(self.set_pen_width_slider)
         self.todo_top_bar.remove_widget(self.set_widget_color_button)
         self.todo_top_bar.remove_widget(self.set_widget_text_color_button)
+        self.todo_top_bar.remove_widget(self.set_widget_line_color_button)
         self.todo_top_bar.remove_widget(self.set_text_align_button)
         self.todo_top_bar.remove_widget(self.set_text_size_slider)
         self.current_open_board=None
@@ -3064,5 +3058,11 @@ class ChatApp(MDApp):
         self.app_in_foreground = True
         message_cache = []
         return True
+
+'''def apply_temp_updates():
+    mapping = {
+        "resources/temp_fonts": "resources/fonts",
+        "resources/temp_img": "resources/img"
+    }
 
 ChatApp().run()
