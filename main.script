@@ -356,7 +356,7 @@ class DraggableResizableWidget(MDCard):
         self.padding = dp(5)
         self.spacing = dp(5)
         self.radius = [dp(10)]
-        self.line_color = btn
+        self.line_color = [0, 0, 0, 0]
         self.line_width = dp(1)
         
         # Resize handle
@@ -405,8 +405,6 @@ class DraggableResizableWidget(MDCard):
         self.content_label.text_color = self.text_color
     
     def _on_selected_change(self, instance, value):
-        self.line_color = [0, 0, 0, 0] if not value else btn
-        # self.md_bg_color = (0.95, 0.95, 1, 1) if value else boxbg  # nếu muốn nổi bật
         self._update_handles()
 
     def _get_handle_at(self, touch_pos):
@@ -1373,6 +1371,7 @@ class Whiteboard(MDFloatLayout):
                     self.selecting_widget = widget
                     MDApp.get_running_app().set_widget_color_button.md_bg_color = child.md_bg_color
                     MDApp.get_running_app().set_widget_text_color_button.md_bg_color = child.text_color
+                    MDApp.get_running_app().set_widget_line_color_button.md_bg_color = child.line_color
                     MDApp.get_running_app().set_text_size_slider.children[1].text=f"Kích thước chữ: {child.text_size:.1f}"
                     MDApp.get_running_app().set_text_size_slider.slider.value = child.text_size
                     MDApp.get_running_app().set_text_align_button.icon = f"format-align-{child.text_align}"
@@ -1827,6 +1826,7 @@ class ChatApp(MDApp):
         self.todo_container = OverlayContainer(size_hint=(1, None), anchor_y='top')
         self.set_widget_color_button = MDCard(size_hint=(None, None), width=dp(20), height=dp(20), radius=dp(100), pos_hint={"center_y": 0.5}, line_width=dp(1.5), line_color=btn, on_release=lambda instance: self.open_color_picker(instance, "widget"))
         self.set_widget_text_color_button = MDCard(size_hint=(None, None), width=dp(20), height=dp(20), radius=dp(100), pos_hint={"center_y": 0.5}, line_width=dp(1.5), line_color=btn, on_release=lambda instance: self.open_color_picker(instance, "text"))
+        self.set_widget_line_color_button = MDCard(size_hint=(None, None), width=dp(20), height=dp(20), radius=dp(100), pos_hint={"center_y": 0.5}, line_width=dp(1.5), line_color=btn, on_release=lambda instance: self.open_color_picker(instance, "line"))
         self.set_text_size_slider = MDBoxLayout(orientation="vertical", size_hint=(None, 1), width=dp(150))
         self.set_text_size_slider.slider = MDSlider(step=0.5, hint=False, color=menubg, thumb_color_active=btn, thumb_color_inactive=btn, show_off=False, pos_hint={"center_y": 0.5}, min=10, max=100)
         self.set_text_size_slider.slider.bind(value=self.update_text_size_value)
@@ -1994,16 +1994,19 @@ class ChatApp(MDApp):
         if value:
             if self.set_widget_color_button.parent is None:
                 self.todo_top_bar.add_widget(self.set_widget_color_button)
+                self.todo_top_bar.add_widget(self.set_widget_line_color_button)
                 self.todo_top_bar.add_widget(self.set_widget_text_color_button)
                 self.todo_top_bar.add_widget(self.set_text_align_button)
                 self.todo_top_bar.add_widget(self.set_text_size_slider)
                 Clock.schedule_once(lambda dt: setattr(self.set_widget_color_button, 'md_bg_color', self.todo_board.selecting_widget.md_bg_color))
+                Clock.schedule_once(lambda dt: setattr(self.set_widget_line_color_button, 'md_bg_color', self.todo_board.selecting_widget.line_color))
                 Clock.schedule_once(lambda dt: setattr(self.set_widget_text_color_button, 'md_bg_color', self.todo_board.selecting_widget.text_color))
                 Clock.schedule_once(lambda dt: setattr(self.set_text_size_slider.slider, 'value', self.todo_board.selecting_widget.text_size))
                 Clock.schedule_once(lambda dt: setattr(self.set_text_align_button, 'icon', "format-align-{}".format(self.todo_board.selecting_widget.text_align)))
         else:
             if self.set_widget_color_button.parent is not None:
                 self.todo_top_bar.remove_widget(self.set_widget_color_button)
+                self.todo_top_bar.remove_widget(self.set_widget_line_color_button)
                 self.todo_top_bar.remove_widget(self.set_widget_text_color_button)
                 self.todo_top_bar.remove_widget(self.set_text_align_button)
                 self.todo_top_bar.remove_widget(self.set_text_size_slider)
@@ -2034,8 +2037,13 @@ class ChatApp(MDApp):
             self.set_widget_text_color_button.md_bg_color=color
             self.todo_board.selecting_widget.text_color = color
 
-        mode={"widget": set_whiteboard_widget_color, "pen": set_whiteboard_pen_color, "text": set_whiteboard_widget_text_color}
-        default_color = {"widget": self.todo_board.selecting_widget.md_bg_color if self.todo_board.selecting_widget else (0, 0, 0, 1), "pen": self.todo_board.pen_color, "text": self.todo_board.selecting_widget.text_color if self.todo_board.selecting_widget else (0, 0, 0, 1)}
+        def set_whiteboard_widget_line_color(color):
+            color_picker.dismiss()
+            self.set_widget_line_color_button.md_bg_color=color
+            self.todo_board.selecting_widget.line_color = color
+
+        mode={"widget": set_whiteboard_widget_color, "pen": set_whiteboard_pen_color, "text": set_whiteboard_widget_text_color, "line": set_whiteboard_widget_line_color}
+        default_color = {"widget": self.todo_board.selecting_widget.md_bg_color if self.todo_board.selecting_widget else (0, 0, 0, 1), "pen": self.todo_board.pen_color, "text": self.todo_board.selecting_widget.text_color if self.todo_board.selecting_widget else (0, 0, 0, 1), "line": self.todo_board.selecting_widget.line_color if self.todo_board.selecting_widget else (0, 0, 0, 1)}
 
         color_picker = ProColorPickerPopup(on_select=mode[obj])
         
@@ -2215,7 +2223,7 @@ class ChatApp(MDApp):
 
     def status(self, instance, value):
         if value:
-            text=format_text_with_fonts(f"Chúng mình đã xa nhau {(datetime.now() - datetime.strptime(self.far_day.start_day, '%d/%m/%Y')).days} ngày 😭")
+            text=format_text_with_fonts(f"Còn {(datetime.strptime(self.far_day.start_day, '%d/%m/%Y') - datetime.now()).days} ngày nữa là ngha và hmn lại kế bên nhau gồii 😍")
             self.far_day.text=f'[size={int(dp(12))}]{text}[/size]'
     
     def sync_overlay_height(self, *args):
