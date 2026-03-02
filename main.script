@@ -241,30 +241,35 @@ def normalize_date(d):
         return d
     return d.strftime("%d/%m/%Y")
 
+# --- UUID helpers (fixed) ---
 UUID32_RE = re.compile(r'^[0-9a-fA-F]{32}$')
-UUID36_RE = re.compile(r'^[0-9a-fA-F\-]{36}$')
+UUID36_RE = re.compile(r'^[0-9a-fA-F-]{36}$')
 
-def norm_uuid_hyphen(s: str) -> str:
+def norm_uuid_hyphen(s: str) -> str | None:
     """
-    Trả về UUID chuẩn hóa 36 ký tự (có gạch), lowercase.
-    - Nhận dạng: chuỗi 32 hex (không gạch) hoặc 36 ký tự có gạch.
-    - Nếu không parse được: raise ValueError để bạn còn log/xử lý.
+    Trả về UUID chuẩn hóa (36 ký tự, có gạch, lowercase).
+    - Nhận: 32 hex (không gạch) hoặc 36 có gạch.
+    - Nếu không parse được, trả về None (KHÔNG raise) để caller tự bỏ qua.
     """
     if not s:
-        raise ValueError("Empty stroke_id")
-    s = s.strip()
-
-    # Tạo đối tượng UUID sẽ tự hiểu cả dạng 32 và 36 (có/không gạch)
+        return None
+    s = str(s).strip()
     try:
-        u = UUID(s)  # sẽ raise nếu s không hợp lệ
-    except ValueError:
-        # Thử trường hợp bạn lỡ truyền mixed-case/extra-chars
-        if UUID32_RE.match(s.replace('-', '')):
-            u = UUID(s.replace('-', ''))
-        else:
-            raise
-
-    return str(u)
+        # Thử parse trực tiếp (chấp nhận cả dạng 32/36)
+        u = UUID(s)
+        return str(u)
+    except Exception:
+        # Thử bỏ gạch nếu là 32 hex
+        raw = s.replace('-', '')
+        if UUID32_RE.match(raw):
+            try:
+                return str(UUID(raw))
+            except Exception:
+                return None
+        # Nếu vốn là 36 ký tự có gạch nhưng không hợp lệ ⇒ None
+        if UUID36_RE.match(s):
+            return s.lower()
+        return None
 
 def canvas_to_norm(canvas, x, y):
     return x / canvas.width, y / canvas.height
@@ -1328,7 +1333,10 @@ class DrawCanvas(MDAnchorLayout):
         self.canvas.add(group)
 
     def erase_remote_stroke(self, stroke_id):
-        self._remove_stroke(norm_uuid_hyphen(stroke_id))
+        sid = norm_uuid_hyphen(stroke_id)
+        if not sid:
+            return
+        self._remove_stroke(sid)
 
     def clear_all(self):
         # remove từng stroke khỏi canvas (KHÔNG canvas.clear)
@@ -1621,7 +1629,10 @@ class Whiteboard(MDFloatLayout):
         self.canvas.add(group)
 
     def erase_remote_stroke(self, stroke_id):
-        self._remove_stroke(norm_uuid_hyphen(stroke_id))
+        sid = norm_uuid_hyphen(stroke_id)
+        if not sid:
+            return
+        self._remove_stroke(sid)
 
     def clear_all(self):
         # remove từng stroke khỏi canvas (KHÔNG canvas.clear)
@@ -3123,13 +3134,12 @@ class ChatApp(MDApp):
                                         if msg_id and msg_id in msg_id_list:
                                             msg_id_list[msg_id].text = f"[size={int(dp(14))}][i]Tin nhắn đã thu hồi ;-;[/i][/size]"
                                     elif data.get("topic") == "realtime:public:draw":
-                                        stroke_id = norm_uuid_hyphen(record.get("id"))
-                                        Clock.schedule_once(
-                                            lambda dt, sid=stroke_id: self.draw_canvas.erase_remote_stroke(sid)
-                                        )
-                                        Clock.schedule_once(
-                                            lambda dt, sid=stroke_id: self.todo_board.erase_remote_stroke(sid)
-                                        )
+                                        sid = norm_uuid_hyphen(record.get("id"))
+                                        if not sid:
+                                            # Không có id hợp lệ ⇒ bỏ qua để tránh crash
+                                            continue
+                                        Clock.schedule_once(lambda dt, _sid=sid: self.draw_canvas.erase_remote_stroke(_sid))
+                                        Clock.schedule_once(lambda dt, _sid=sid: self.todo_board.erase_remote_stroke(_sid))
                                     elif data.get("topic") == "realtime:public:todo":
                                         if len(self.todo_browse.children)==1:
                                             Clock.schedule_once(lambda dt: self.todo_scroll.clear_widgets())
