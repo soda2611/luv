@@ -578,6 +578,7 @@ class DraggableResizableWidget(MDCard):
         return False
     
     def _show_edit_dialog(self):
+        self.is_editing = True
         edit_input = MDTextField(
             hint_text="Nhập nội dung mới",
             text=self.text if self.text != "Double-click để chỉnh sửa" else "",
@@ -600,6 +601,7 @@ class DraggableResizableWidget(MDCard):
             dialog.dismiss()
         
         def cancel_edit(instance):
+            self.is_editing = False
             dialog.dismiss()
         
         dialog = MDDialog(
@@ -3200,7 +3202,6 @@ class ChatApp(MDApp):
                                             float(rec["w"]), float(rec["h"])
                                         )
                                         # tắt chọn để không nhảy UI khi người khác kéo
-                                        target.selected = False
                                         target.angle = float(rec.get("angle") or 0.0)
                                         target.text = rec.get("text") or target.text
                                         target.text_size = float(rec.get("text_size") or target.text_size)
