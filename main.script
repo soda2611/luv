@@ -272,6 +272,12 @@ def canvas_to_norm(canvas, x, y):
 def norm_to_canvas(canvas, nx, ny):
     return nx * canvas.width, ny * canvas.height
 
+def widget_to_norm(board, x, y, w, h):
+    return (x / board.width, y / board.height, w / board.width, h / board.height)
+
+def norm_to_widget(board, nx, ny, nw, nh):
+    return (nx * board.width, ny * board.height, nw * board.width, nh * board.height)
+
 Window.minimum_width, Window.minimum_height = 400, 500
 Window.softinput_mode = "below_target"
 
@@ -328,7 +334,7 @@ class DraggableResizableWidget(MDCard):
         self.widget_id = widget_id
         self.orientation = "vertical"
         self.size_hint = (None, None)
-        self.size = (dp(200), dp(150))
+        self.size = (dp(0), dp(0))
         self.md_bg_color = boxbg
         self.padding = dp(5)
         self.spacing = dp(5)
@@ -650,6 +656,7 @@ class DraggableResizableWidget(MDCard):
                 self.parent.on_widget_deleted(self.widget_id)
             if self.parent:
                 self.parent.remove_widget(self)
+            MDApp.get_running_app().delete_widget(self.widget_id)
             return True
 
         if handle:
@@ -1359,9 +1366,9 @@ class Whiteboard(MDFloatLayout):
         for child in self.children:
             if isinstance(child, DraggableResizableWidget): 
                 if child is widget:
-                    self.selected_widget_exists = True
                     child.selected = True
                     self.selecting_widget = widget
+                    self.selected_widget_exists = True
                     MDApp.get_running_app().set_widget_color_button.md_bg_color = child.md_bg_color
                     MDApp.get_running_app().set_widget_text_color_button.md_bg_color = child.text_color
                     MDApp.get_running_app().set_widget_line_color_button.md_bg_color = child.line_color
@@ -1376,7 +1383,7 @@ class Whiteboard(MDFloatLayout):
             self.selected_widget_exists = False
             self.selecting_widget.selected = False
             self.selecting_widget = None
-
+            MDApp.get_running_app().toolbar_return()
     # --------------------------------------------------
     # PEN / SELECTION
     # --------------------------------------------------
@@ -1654,6 +1661,7 @@ class ChatApp(MDApp):
         self._todo_draw_lock = threading.Lock()
         self.deleted_strokes = set()
         self.current_open_board=None
+        self.current_widget_format=None
 
         if os.path.exists("uid.txt"):
             with open("uid.txt", "r") as f:
@@ -1820,12 +1828,19 @@ class ChatApp(MDApp):
         self.set_widget_color_button = MDCard(size_hint=(None, None), width=dp(20), height=dp(20), radius=dp(100), pos_hint={"center_y": 0.5}, line_width=dp(1.5), line_color=btn, on_release=lambda instance: self.open_color_picker(instance, "widget"))
         self.set_widget_text_color_button = MDCard(size_hint=(None, None), width=dp(20), height=dp(20), radius=dp(100), pos_hint={"center_y": 0.5}, line_width=dp(1.5), line_color=btn, on_release=lambda instance: self.open_color_picker(instance, "text"))
         self.set_widget_line_color_button = MDCard(size_hint=(None, None), width=dp(20), height=dp(20), radius=dp(100), pos_hint={"center_y": 0.5}, line_width=dp(1.5), line_color=btn, on_release=lambda instance: self.open_color_picker(instance, "line"))
-        self.set_text_size_slider = MDBoxLayout(orientation="vertical", size_hint=(None, 1), width=dp(90))
-        self.set_text_size_slider.slider = MDSlider(step=0.5, hint=False, color=menubg, thumb_color_active=btn, thumb_color_inactive=btn, show_off=False, pos_hint={"center_y": 0.5}, min=8, max=120)
+        self.set_text_size_slider = MDBoxLayout(size_hint=(None, 1), width=dp(250))
+        self.set_text_size_slider.slider = MDSlider(step=0.5, hint=False, color=boxbg, thumb_color_active=btn, thumb_color_inactive=btn, show_off=False, pos_hint={"center_y": 0.5}, min=8, max=120)
         self.set_text_size_slider.slider.bind(value=self.update_text_size_value)
-        self.set_text_size_slider.add_widget(MDLabel(theme_text_color="Custom", text_color=primarycolor, size_hint=(1, None), height=dp(12), font_style="Caption", halign="center"))
+        self.set_text_size_slider.add_widget(MDLabel(theme_text_color="Custom", text_color='white', size_hint=(None, 1), font_style="Caption", halign="center", valign="center"))
         self.set_text_size_slider.add_widget(self.set_text_size_slider.slider)
+        self.set_widget_rotation_slider = MDBoxLayout(size_hint=(None, 1), width=dp(250))
+        self.set_widget_rotation_slider.slider = MDSlider(step=0.5, hint=False, color=boxbg, thumb_color_active=btn, thumb_color_inactive=btn, show_off=False, pos_hint={"center_y": 0.5}, min=0, max=360, value=-1)
+        self.set_widget_rotation_slider.slider.bind(value=self.update_widget_rotation_value)
+        self.set_widget_rotation_slider.add_widget(MDLabel(theme_text_color="Custom", text_color='white', size_hint=(None, 1), font_style="Caption", halign="center", valign="center"))
+        self.set_widget_rotation_slider.add_widget(self.set_widget_rotation_slider.slider)
         self.set_text_align_button = MDIconButton(icon_size=dp(20), theme_icon_color="Custom", icon_color=primarycolor, md_bg_color=bg, on_release=self.switch_text_align, pos_hint={"center_y": 0.5})
+        self.set_text_size_button = MDIconButton(icon_size=dp(20), icon="format-size", theme_icon_color="Custom", icon_color=primarycolor, md_bg_color=bg, on_release=self.open_text_size_slider, pos_hint={"center_y": 0.5})
+        self.set_widget_rotation_button = MDIconButton(icon_size=dp(20), icon="restore", theme_icon_color="Custom", icon_color=primarycolor, md_bg_color=bg, on_release=self.open_widget_rotation_slider, pos_hint={"center_y": 0.5})
         self.set_pen_color_button = MDCard(size_hint=(None, None), width=dp(20), height=dp(20), radius=dp(100), md_bg_color=self.todo_board.pen_color, pos_hint={"center_y": 0.5}, line_width=dp(1.5), line_color=btn, on_release=lambda instance: self.open_color_picker(instance, "pen"))
         self.set_pen_width_slider = MDBoxLayout(orientation="vertical", size_hint=(None, 1), width=dp(100))
         self.set_pen_width_slider.slider = MDSlider(step=0.1, hint=False, color=menubg, thumb_color_active=btn, thumb_color_inactive=btn, show_off=False, pos_hint={"center_y": 0.5}, min=2.5, max=10, value=self.todo_board.pen_width)
@@ -1835,6 +1850,18 @@ class ChatApp(MDApp):
         self.todo_browse.bind(minimum_height=self.todo_browse.setter('height'))
         self.todo_browse.bind(size=self.sync_overlay_height)
         self.todo_scroll.add_widget(self.todo_browse)
+        
+        self.widget_format_toolbar = MDBoxLayout(size_hint=(None, 1), spacing=dp(10), pos_hint={"center_x": 0.5})
+        self.widget_format_toolbar.bind(minimum_width=self.widget_format_toolbar.setter("width"))
+        self.widget_text_format_toolbar = MDBoxLayout(size_hint=(None, 1), spacing=0, pos_hint={"center_x": 0.5})
+        self.widget_text_format_toolbar.bind(minimum_width=self.widget_text_format_toolbar.setter("width"))
+        self.widget_format_toolbar.add_widget(self.set_widget_color_button)
+        self.widget_format_toolbar.add_widget(self.set_widget_line_color_button)
+        self.widget_format_toolbar.add_widget(self.set_widget_text_color_button)
+        self.widget_format_toolbar.add_widget(self.widget_text_format_toolbar)
+        self.widget_text_format_toolbar.add_widget(self.set_widget_rotation_button)
+        self.widget_text_format_toolbar.add_widget(self.set_text_size_button)
+        self.widget_text_format_toolbar.add_widget(self.set_text_align_button)
 
         self.todo_toolbar = MDCard(
             md_bg_color=btn,
@@ -1983,26 +2010,45 @@ class ChatApp(MDApp):
         self.todo_board.selecting_widget.text_align = new_align
         self.set_text_align_button.icon = "format-align-{}".format(new_align)
 
+    def toolbar_return(self):
+        if self.current_widget_format is not None:
+            self.current_widget_format.md_bg_color = bg
+        self.todo_toolbar.clear_widgets()
+        self.todo_toolbar.add_widget(self.todo_toolbar_background_overlay)
+
+    def open_text_size_slider(self, instance):
+        if self.set_text_size_slider.parent is None:
+            self.toolbar_return()
+            self.todo_toolbar.clear_widgets()
+            self.todo_toolbar.add_widget(self.set_text_size_slider)
+            self.current_widget_format = self.set_text_size_button
+            self.set_text_size_button.md_bg_color = boxbg
+            Clock.schedule_once(lambda dt: setattr(self.set_text_size_slider.slider, 'value', self.todo_board.selecting_widget.text_size))
+        else:
+            self.toolbar_return()
+
+    def open_widget_rotation_slider(self, instance):
+        if self.set_widget_rotation_slider.parent is None:
+            self.toolbar_return()
+            self.todo_toolbar.clear_widgets()
+            self.todo_toolbar.add_widget(self.set_widget_rotation_slider)
+            self.current_widget_format = self.set_widget_rotation_button
+            self.set_widget_rotation_button.md_bg_color = boxbg
+            Clock.schedule_once(lambda dt: setattr(self.set_widget_rotation_slider.slider, 'value', self.todo_board.selecting_widget.angle))
+        else:
+            self.toolbar_return()
+
     def format_widget_toolbar(self, instance, value):
         if value:
-            if self.set_widget_color_button.parent is None:
-                self.todo_top_bar.add_widget(self.set_widget_color_button)
-                self.todo_top_bar.add_widget(self.set_widget_line_color_button)
-                self.todo_top_bar.add_widget(self.set_widget_text_color_button)
-                self.todo_top_bar.add_widget(self.set_text_align_button)
-                self.todo_top_bar.add_widget(self.set_text_size_slider)
-                Clock.schedule_once(lambda dt: setattr(self.set_widget_color_button, 'md_bg_color', self.todo_board.selecting_widget.md_bg_color))
-                Clock.schedule_once(lambda dt: setattr(self.set_widget_line_color_button, 'md_bg_color', self.todo_board.selecting_widget.line_color))
-                Clock.schedule_once(lambda dt: setattr(self.set_widget_text_color_button, 'md_bg_color', self.todo_board.selecting_widget.text_color))
-                Clock.schedule_once(lambda dt: setattr(self.set_text_size_slider.slider, 'value', self.todo_board.selecting_widget.text_size))
-                Clock.schedule_once(lambda dt: setattr(self.set_text_align_button, 'icon', "format-align-{}".format(self.todo_board.selecting_widget.text_align)))
+            self.todo_top_bar.add_widget(self.widget_format_toolbar)
+            Clock.schedule_once(lambda dt: setattr(self.set_widget_color_button, 'md_bg_color', self.todo_board.selecting_widget.md_bg_color))
+            Clock.schedule_once(lambda dt: setattr(self.set_widget_line_color_button, 'md_bg_color', self.todo_board.selecting_widget.line_color))
+            Clock.schedule_once(lambda dt: setattr(self.set_widget_text_color_button, 'md_bg_color', self.todo_board.selecting_widget.text_color))
+            Clock.schedule_once(lambda dt: setattr(self.set_widget_rotation_slider.slider, 'value', self.todo_board.selecting_widget.angle))
+            Clock.schedule_once(lambda dt: setattr(self.set_text_size_slider.slider, 'value', self.todo_board.selecting_widget.text_size))
+            Clock.schedule_once(lambda dt: setattr(self.set_text_align_button, 'icon', "format-align-{}".format(self.todo_board.selecting_widget.text_align)))
         else:
-            if self.set_widget_color_button.parent is not None:
-                self.todo_top_bar.remove_widget(self.set_widget_color_button)
-                self.todo_top_bar.remove_widget(self.set_widget_line_color_button)
-                self.todo_top_bar.remove_widget(self.set_widget_text_color_button)
-                self.todo_top_bar.remove_widget(self.set_text_align_button)
-                self.todo_top_bar.remove_widget(self.set_text_size_slider)
+            self.todo_top_bar.remove_widget(self.widget_format_toolbar)
 
     def update_width_value(self, instance, value):
         self.todo_board.pen_width=value
@@ -2011,6 +2057,10 @@ class ChatApp(MDApp):
     def update_text_size_value(self, instance, value):
         self.todo_board.selecting_widget.text_size=value
         self.set_text_size_slider.children[1].text=f"Cỡ chữ: {value:.1f}"
+
+    def update_widget_rotation_value(self, instance, value):
+        self.todo_board.selecting_widget.angle=value
+        self.set_widget_rotation_slider.children[1].text=f"Góc xoay: {value:.1f}"
 
     def open_color_picker(self, instance, obj):
         def set_whiteboard_widget_color(color):
@@ -2066,13 +2116,77 @@ class ChatApp(MDApp):
     def add_new_todo_widget(self, *args):
         if not todo_draw_mode:
             return
-
         w = DraggableResizableWidget(
             norm_uuid_hyphen(str(uuid4().hex)),
-            pos=(dp(100), self.todo_board.height - dp(200))
+            pos=(0, 0),
         )
+        # style default nếu cần
+        w.md_bg_color = (1,1,1,1)
+        w.line_color = (0,0,0,0.2)
+        w.text_color = (0,0,0,1)
+        w.text_size = 14
+        w.text_align = "center"
+
+        # gắn callback: mỗi lần thay đổi vị trí/size/góc -> gửi patch (debounce)
+        self._wire_widget_events(w)
+
         self.todo_board.add_widget(w)
         self.todo_board.set_selected_widget(w)
+        # đặt vị trí & size ban đầu
+        def _place(_dt):
+            w.pos = (dp(100), self.todo_board.height - dp(200))
+            w.size = (dp(200), dp(150))
+            # gửi UPSERT lần đầu
+            self.upsert_widget(w)
+
+        Clock.schedule_once(_place, 0)
+
+    def _wire_widget_events(self, w: DraggableResizableWidget):
+        # Debounce chống spam patch khi kéo/resize
+        if not hasattr(self, "_widget_debouncers"):
+            self._widget_debouncers = {}
+
+        def _debounce(key, fn, delay=0.12):
+            # mỗi widget có 1 dict debounce
+            d = self._widget_debouncers.setdefault(w.widget_id, {})
+            ev = d.get(key)
+            if ev:
+                try: ev.cancel()
+                except: pass
+            d[key] = Clock.schedule_once(lambda _dt: fn(), delay)
+
+        def on_geom_change(*_):
+            # gửi patch x,y,w,h,angle
+            def do():
+                nx, ny, nw, nh = widget_to_norm(self.todo_board, w.x, w.y, w.width, w.height)
+                self.patch_widget_partial(w.widget_id, {
+                    "x": nx, "y": ny, "w": nw, "h": nh, "angle": float(w.angle)
+                })
+            _debounce("geom", do)
+
+        def on_text_change(*_):
+            def do():
+                self.patch_widget_partial(w.widget_id, {
+                    "text": w.text, "text_size": float(w.text_size),
+                    "text_align": w.text_align
+                })
+            _debounce("text", do)
+
+        def on_style_change(*_):
+            def do():
+                self.patch_widget_partial(w.widget_id, {
+                    "bg_color": list(w.md_bg_color),
+                    "line_color": list(getattr(w, "line_color", (0,0,0,0))),
+                    "text_color": list(w.text_color),
+                })
+            _debounce("style", do)
+
+        # bind Kivy properties
+        w.bind(pos=on_geom_change, size=on_geom_change, angle=on_geom_change)
+        w.bind(text=on_text_change, text_size=on_text_change, text_align=on_text_change)
+        w.bind(md_bg_color=on_style_change, text_color=on_style_change)
+        # line_color thay đổi qua set_widget_line_color_button
+        # không phải dạng Property chuẩn => đã bind bằng on_style_change qua set ở chỗ gọi
     
     def enable_todo(self, instance):
         global todo_draw_mode
@@ -2202,6 +2316,51 @@ class ChatApp(MDApp):
             if res.status_code not in (200, 201):
                 print("DRAW INSERT FAIL:", res.text)
 
+        threading.Thread(target=send, daemon=True).start()
+
+    def upsert_widget(self, w: DraggableResizableWidget):
+        # Tính normalized
+        nx, ny, nw, nh = widget_to_norm(self.todo_board, w.x, w.y, w.width, w.height)
+        data = {
+            "id": norm_uuid_hyphen(w.widget_id),
+            "sender": self.user_id,
+            "file": self.current_open_board,  # whiteboard hiện tại
+            "x": nx, "y": ny, "w": nw, "h": nh,
+            "angle": float(w.angle) if getattr(w, "angle", 0) is not None else 0.0,
+            "bg_color": list(w.md_bg_color),
+            "line_color": list(getattr(w, "line_color", (0,0,0,0))),
+            "text_color": list(w.text_color),
+            "text": w.text,
+            "text_size": float(w.text_size),
+            "text_align": w.text_align,
+        }
+
+        def send():
+            url = f"{SUPABASE_URL}/rest/v1/widgets"
+            # UPSERT theo id (Prefer: resolution=merge-duplicates)
+            res = requests.post(
+                url, headers={**headers, "Prefer": "resolution=merge-duplicates"},
+                json=data
+            )
+            if res.status_code not in (200, 201):
+                print("WIDGET UPSERT FAIL:", res.status_code, res.text)
+
+        threading.Thread(target=send, daemon=True).start()
+
+    def patch_widget_partial(self, w_id: str, partial: dict):
+        def send():
+            url = f"{SUPABASE_URL}/rest/v1/widgets?id=eq.{norm_uuid_hyphen(w_id)}"
+            res = requests.patch(url, headers=headers, json=partial)
+            if res.status_code not in (200, 204):
+                print("WIDGET PATCH FAIL:", res.status_code, res.text)
+        threading.Thread(target=send, daemon=True).start()
+
+    def delete_widget(self, w_id: str):
+        def send():
+            url = f"{SUPABASE_URL}/rest/v1/widgets?id=eq.{norm_uuid_hyphen(w_id)}"
+            res = requests.delete(url, headers=headers)
+            if res.status_code not in (200, 204):
+                print("WIDGET DELETE FAIL:", res.status_code, res.text)
         threading.Thread(target=send, daemon=True).start()
 
     def _debounced_reload(self, date_str, delay=0.25):
@@ -2481,11 +2640,7 @@ class ChatApp(MDApp):
         self.todo_top_bar.remove_widget(self.todo_top_back)
         self.todo_top_bar.remove_widget(self.set_pen_color_button)
         self.todo_top_bar.remove_widget(self.set_pen_width_slider)
-        self.todo_top_bar.remove_widget(self.set_widget_color_button)
-        self.todo_top_bar.remove_widget(self.set_widget_text_color_button)
-        self.todo_top_bar.remove_widget(self.set_widget_line_color_button)
-        self.todo_top_bar.remove_widget(self.set_text_align_button)
-        self.todo_top_bar.remove_widget(self.set_text_size_slider)
+        self.todo_top_bar.remove_widget(self.widget_format_toolbar)
         self.current_open_board=None
         self.todo_browse.clear_widgets()
         url = f"{SUPABASE_URL}/rest/v1/todo?select=*&order=created_at.asc"
@@ -2572,6 +2727,51 @@ class ChatApp(MDApp):
                 "width": row["width"],
                 "color": tuple(row["color"]),
             })
+
+        url = (
+            f"{SUPABASE_URL}/rest/v1/widgets"
+            f"?select=*"
+            f"&file=eq.{name}"
+            f"&order=created_at.asc"
+        )
+        res = requests.get(url, headers=headers)
+        if res.status_code != 200:
+            print("LOAD WIDGETS FAIL:", res.text)
+            return
+
+        # xoá widget cũ trước khi hydrate
+        for child in list(self.todo_board.children):
+            if isinstance(child, DraggableResizableWidget):
+                self.todo_board.remove_widget(child)
+
+        for row in res.json():
+            w = self._create_widget_from_record(row)
+            self.todo_board.add_widget(w)
+
+    def _create_widget_from_record(self, rec: dict) -> DraggableResizableWidget:
+        w = DraggableResizableWidget(norm_uuid_hyphen(rec["id"]))
+        # gán style/content
+        w.text = rec.get("text") or "Double-click để chỉnh sửa"
+        w.text_size = float(rec.get("text_size") or 14)
+        w.text_align = rec.get("text_align") or "center"
+        w.md_bg_color = tuple(rec.get("bg_color") or (1,1,1,1))
+        w.line_color = tuple(rec.get("line_color") or (0,0,0,0.2))
+        w.text_color = tuple(rec.get("text_color") or (0,0,0,1))
+        w.angle = float(rec.get("angle") or 0.0)
+
+        # toạ độ normalized -> pixel
+        x, y, ww, hh = norm_to_widget(
+            self.todo_board,
+            float(rec["x"]), float(rec["y"]),
+            float(rec["w"]), float(rec["h"])
+        )
+        # đặt size trước, rồi pos để tránh flash bounds
+        w.size = (ww, hh)
+        w.pos = (x, y)
+
+        # gắn wire để khi user chỉnh thì PATCH
+        self._wire_widget_events(w)
+        return w
 
     def load_far(self, *args):
         url = f"{SUPABASE_URL}/rest/v1/far?select=*&order=start.asc"
@@ -2903,6 +3103,13 @@ class ChatApp(MDApp):
                             "payload": {},
                             "ref": 6
                         }))
+                     
+                        await ws.send(json.dumps({
+                        "topic": "realtime:public:widgets",
+                        "event": "phx_join",
+                        "payload": {},
+                        "ref": 7
+                        }))
 
                         while True:
                             msg = await ws.recv()
@@ -2927,7 +3134,70 @@ class ChatApp(MDApp):
                                         if len(self.todo_browse.children)==1:
                                             Clock.schedule_once(lambda dt: self.todo_scroll.clear_widgets())
                                             Clock.schedule_once(lambda dt: self.todo_scroll.add_widget(MDLabel(text="Chưa có whiteboard nào được tạo hết ;-;", halign='center', valign='center', size_hint=(1, 1))))
-                                        Clock.schedule_once(lambda dt: self.todo_browse.remove_widget(file_id_list[record["id"]]))
+                                        Clock.schedule_once(lambda dt: self.todo_browse.remove_widget(file_id_list[record["id"]]))    
+                                    elif data.get("topic") == "realtime:public:widgets":
+                                            wid = norm_uuid_hyphen(record.get("id"))
+                                            # nếu đang mở đúng whiteboard, remove widget
+                                            if self.current_open_board and record.get("file") == self.current_open_board:
+                                                def _remove(_dt):
+                                                    for child in list(self.todo_board.children):
+                                                        if isinstance(child, DraggableResizableWidget) and child.widget_id == wid:
+                                                            self.todo_board.remove_widget(child)
+                                                            break
+                                                Clock.schedule_once(_remove)
+
+                                elif data.get("topic") == "realtime:public:widgets":
+                                    wid = norm_uuid_hyphen(record.get("id"))
+                                    # nếu đang mở đúng whiteboard, remove widget
+                                    if self.current_open_board and record.get("file") == self.current_open_board:
+                                        def _remove(_dt):
+                                            for child in list(self.todo_board.children):
+                                                if isinstance(child, DraggableResizableWidget) and child.widget_id == wid:
+                                                    self.todo_board.remove_widget(child)
+                                                    break
+                                        Clock.schedule_once(_remove)
+
+                            elif data.get("event") in ("INSERT", "UPDATE") and data.get("topic") == "realtime:public:widgets":
+                                rec = record
+                                # chỉ quan tâm board đang mở và tin không phải của chính mình (để tránh duplicate)
+                                if not self.current_open_board or rec.get("file") != self.current_open_board:
+                                    pass
+                                elif rec.get("sender") == self.user_id:
+                                    # vẫn nên merge UPDATE từ chính mình nếu đến trễ? tuỳ bạn
+                                    pass
+
+                                def _apply(_dt):
+                                    wid = norm_uuid_hyphen(rec["id"])
+                                    # tìm widget, có thì cập nhật, không có thì tạo
+                                    target = None
+                                    for child in self.todo_board.children:
+                                        if isinstance(child, DraggableResizableWidget) and child.widget_id == wid:
+                                            target = child
+                                            break
+                                    if target is None:
+                                        # tạo mới
+                                        w = self._create_widget_from_record(rec)
+                                        self.todo_board.add_widget(w)
+                                    else:
+                                        # cập nhật
+                                        x, y, ww, hh = norm_to_widget(
+                                            self.todo_board,
+                                            float(rec["x"]), float(rec["y"]),
+                                            float(rec["w"]), float(rec["h"])
+                                        )
+                                        # tắt chọn để không nhảy UI khi người khác kéo
+                                        target.selected = False
+                                        target.angle = float(rec.get("angle") or 0.0)
+                                        target.text = rec.get("text") or target.text
+                                        target.text_size = float(rec.get("text_size") or target.text_size)
+                                        target.text_align = rec.get("text_align") or target.text_align
+                                        target.md_bg_color = tuple(rec.get("bg_color") or target.md_bg_color)
+                                        target.line_color = tuple(rec.get("line_color") or target.line_color)
+                                        target.text_color = tuple(rec.get("text_color") or target.text_color)
+                                        target.size = (ww, hh)
+                                        target.pos = (x, y)
+
+                                Clock.schedule_once(_apply)
                                 continue
 
                             if data.get("event") == "UPDATE" and data["topic"] == "realtime:public:version" and datetime.strptime(record["date"], "%d/%m/%Y").date() >= datetime.now().date() and build!=record["build"]:
@@ -3058,11 +3328,5 @@ class ChatApp(MDApp):
         self.app_in_foreground = True
         message_cache = []
         return True
-
-'''def apply_temp_updates():
-    mapping = {
-        "resources/temp_fonts": "resources/fonts",
-        "resources/temp_img": "resources/img"
-    }
 
 ChatApp().run()
