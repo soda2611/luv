@@ -2153,12 +2153,10 @@ class ChatApp(MDApp):
         Clock.schedule_once(_place, 0)
 
     def _wire_widget_events(self, w: DraggableResizableWidget):
-        # Debounce chống spam patch khi kéo/resize
         if not hasattr(self, "_widget_debouncers"):
             self._widget_debouncers = {}
 
         def _debounce(key, fn, delay=0.12):
-            # mỗi widget có 1 dict debounce
             d = self._widget_debouncers.setdefault(w.widget_id, {})
             ev = d.get(key)
             if ev:
@@ -2167,11 +2165,12 @@ class ChatApp(MDApp):
             d[key] = Clock.schedule_once(lambda _dt: fn(), delay)
 
         def on_geom_change(*_):
-            # gửi patch x,y,w,h,angle
+            # --> angle có mặt trong PATCH
             def do():
                 nx, ny, nw, nh = widget_to_norm(self.todo_board, w.x, w.y, w.width, w.height)
                 self.patch_widget_partial(w.widget_id, {
-                    "x": nx, "y": ny, "w": nw, "h": nh, "angle": float(w.angle)
+                    "x": nx, "y": ny, "w": nw, "h": nh,
+                    "angle": float(w.angle),
                 })
             _debounce("geom", do)
 
@@ -2192,13 +2191,11 @@ class ChatApp(MDApp):
                 })
             _debounce("style", do)
 
-        # bind Kivy properties
+        # Lưu ý: angle phải bind ở đây để trigger on_geom_change
         w.bind(pos=on_geom_change, size=on_geom_change, angle=on_geom_change)
         w.bind(text=on_text_change, text_size=on_text_change, text_align=on_text_change)
         w.bind(md_bg_color=on_style_change, text_color=on_style_change)
-        # line_color thay đổi qua set_widget_line_color_button
-        # không phải dạng Property chuẩn => đã bind bằng on_style_change qua set ở chỗ gọi
-    
+
     def enable_todo(self, instance):
         global todo_draw_mode
         instance.icon = "lock-open" if not todo_draw_mode else "lock"
@@ -2761,26 +2758,22 @@ class ChatApp(MDApp):
 
     def _create_widget_from_record(self, rec: dict) -> DraggableResizableWidget:
         w = DraggableResizableWidget(norm_uuid_hyphen(rec["id"]))
-        # gán style/content
         w.text = rec.get("text") or "Double-click để chỉnh sửa"
         w.text_size = float(rec.get("text_size") or 14)
         w.text_align = rec.get("text_align") or "center"
         w.md_bg_color = tuple(rec.get("bg_color") or (1,1,1,1))
         w.line_color = tuple(rec.get("line_color") or (0,0,0,0.2))
         w.text_color = tuple(rec.get("text_color") or (0,0,0,1))
-        w.angle = float(rec.get("angle") or 0.0)
+        w.angle = float(rec.get("angle") or 0.0)   # <-- đảm bảo có dòng này
 
-        # toạ độ normalized -> pixel
         x, y, ww, hh = norm_to_widget(
             self.todo_board,
             float(rec["x"]), float(rec["y"]),
             float(rec["w"]), float(rec["h"])
         )
-        # đặt size trước, rồi pos để tránh flash bounds
         w.size = (ww, hh)
-        w.pos = (x, y)
+        w.pos  = (x, y)
 
-        # gắn wire để khi user chỉnh thì PATCH
         self._wire_widget_events(w)
         return w
 
@@ -3146,15 +3139,26 @@ class ChatApp(MDApp):
                                             Clock.schedule_once(lambda dt: self.todo_scroll.add_widget(MDLabel(text="Chưa có whiteboard nào được tạo hết ;-;", halign='center', valign='center', size_hint=(1, 1))))
                                         Clock.schedule_once(lambda dt: self.todo_browse.remove_widget(file_id_list[record["id"]]))    
                                     elif data.get("topic") == "realtime:public:widgets":
-                                            wid = norm_uuid_hyphen(record.get("id"))
-                                            # nếu đang mở đúng whiteboard, remove widget
-                                            if self.current_open_board and record.get("file") == self.current_open_board:
-                                                def _remove(_dt):
-                                                    for child in list(self.todo_board.children):
-                                                        if isinstance(child, DraggableResizableWidget) and child.widget_id == wid:
-                                                            self.todo_board.remove_widget(child)
-                                                            break
-                                                Clock.schedule_once(_remove)
+                                        wid = norm_uuid_hyphen(record.get("id"))
+                                        if not wid:
+                                            continue
+
+                                        # KHÔNG ràng buộc 'file' để chắc chắn xoá theo id toàn cục
+                                        def _remove(_dt):
+                                            # tìm & remove theo id
+                                            target = None
+                                            for child in list(self.todo_board.children):
+                                                if isinstance(child, DraggableResizableWidget) and child.widget_id == wid:
+                                                    target = child
+                                                    break
+                                            if target is not None:
+                                                self.todo_board.remove_widget(target)
+                                            else:
+                                                # log thêm nếu không tìm thấy để bạn biết lý do UI không đổi
+                                                print("WIDGET DELETE but not found in UI:", wid)
+
+                                        Clock.schedule_once(_remove)
+                                        continue
 
                                 elif data.get("topic") == "realtime:public:widgets":
                                     wid = norm_uuid_hyphen(record.get("id"))
