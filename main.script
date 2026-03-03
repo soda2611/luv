@@ -2452,7 +2452,8 @@ class ChatApp(MDApp):
             if wdg.widget_id in self._suppress_widget_events:
                 return
             # gom dữ liệu hiện tại và gửi PATCH sau 100ms
-            def _do_patch(__dt):
+
+            def get_patch():
                 payload = self._serialize_widget(wdg)
                 url = f"{SUPABASE_URL}/rest/v1/widgets?id=eq.{payload['id']}"
                 try:
@@ -2461,6 +2462,9 @@ class ChatApp(MDApp):
                         print("WIDGET PATCH FAIL:", res.text)
                 except Exception as e:
                     print("WIDGET PATCH ERR:", e)
+
+            def _do_patch(__dt):
+                threading.Thread(target=get_patch).start()
 
             # huỷ timer cũ nếu có, rồi đặt lại
             if wdg.widget_id in self._widget_update_timers:
