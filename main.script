@@ -1843,12 +1843,12 @@ class ChatApp(MDApp):
         self.set_text_size_slider = MDBoxLayout(size_hint=(None, 1), width=dp(250))
         self.set_text_size_slider.slider = MDSlider(step=0.5, hint=False, color=boxbg, thumb_color_active=btn, thumb_color_inactive=btn, show_off=False, pos_hint={"center_y": 0.5}, min=8, max=120)
         self.set_text_size_slider.slider.bind(value=self.update_text_size_value)
-        self.set_text_size_slider.add_widget(MDLabel(theme_text_color="Custom", text_color='white', size_hint=(None, 1), font_style="Caption", halign="center", valign="center"))
+        self.set_text_size_slider.add_widget(MDLabel(theme_text_color="Custom", text_color='white', size_hint=(None, 1), width=dp(100), font_style="Caption", halign="center", valign="center"))
         self.set_text_size_slider.add_widget(self.set_text_size_slider.slider)
         self.set_widget_rotation_slider = MDBoxLayout(size_hint=(None, 1), width=dp(250))
         self.set_widget_rotation_slider.slider = MDSlider(step=0.5, hint=False, color=boxbg, thumb_color_active=btn, thumb_color_inactive=btn, show_off=False, pos_hint={"center_y": 0.5}, min=0, max=360, value=-1)
         self.set_widget_rotation_slider.slider.bind(value=self.update_widget_rotation_value)
-        self.set_widget_rotation_slider.add_widget(MDLabel(theme_text_color="Custom", text_color='white', size_hint=(None, 1), font_style="Caption", halign="center", valign="center"))
+        self.set_widget_rotation_slider.add_widget(MDLabel(theme_text_color="Custom", text_color='white', size_hint=(None, 1), width=dp(100), font_style="Caption", halign="center", valign="center"))
         self.set_widget_rotation_slider.add_widget(self.set_widget_rotation_slider.slider)
         self.set_text_align_button = MDIconButton(icon_size=dp(20), theme_icon_color="Custom", icon_color=primarycolor, md_bg_color=bg, on_release=self.switch_text_align, pos_hint={"center_y": 0.5})
         self.set_text_size_button = MDIconButton(icon_size=dp(20), icon="format-size", theme_icon_color="Custom", icon_color=primarycolor, md_bg_color=bg, on_release=self.open_text_size_slider, pos_hint={"center_y": 0.5})
@@ -3194,8 +3194,9 @@ class ChatApp(MDApp):
                                         wid = norm_uuid_hyphen(record.get("id"))
                                         def _remove(*args):
                                             wdg = self.todo_widget_by_id.pop(wid, None)
-                                            if wdg == self.todo_board.selecting_widget: self.todo_board.deselect_all()
-                                            self.todo_board.remove_widget(wdg)
+                                            if wdg:
+                                                if wdg == self.todo_board.selecting_widget: self.todo_board.deselect_all()
+                                                self.todo_board.remove_widget(wdg)
 
                                         Clock.schedule_once(_remove, 0)
                                 continue
