@@ -2735,11 +2735,7 @@ class ChatApp(MDApp):
         self.todo_top_bar.remove_widget(self.todo_top_back)
         self.todo_top_bar.remove_widget(self.set_pen_color_button)
         self.todo_top_bar.remove_widget(self.set_pen_width_slider)
-        self.todo_top_bar.remove_widget(self.set_widget_color_button)
-        self.todo_top_bar.remove_widget(self.set_widget_text_color_button)
-        self.todo_top_bar.remove_widget(self.set_widget_line_color_button)
-        self.todo_top_bar.remove_widget(self.set_text_align_button)
-        self.todo_top_bar.remove_widget(self.set_text_size_slider)
+        self.todo_top_bar.remove_widget(self.widget_format_toolbar)
         self.current_open_board=None
         self.todo_browse.clear_widgets()
         url = f"{SUPABASE_URL}/rest/v1/todo?select=*"
