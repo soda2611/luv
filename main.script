@@ -2014,7 +2014,7 @@ class ChatApp(MDApp):
 
         if datetime.strftime(datetime.now(), "%d/%m/%Y") == "06/03/2026":
             Clock.schedule_once(lambda dt: setattr(self.sm, "current", "to-do"), 0)
-            Clock.schedule_once(lambda dt: self.load_todo_strokes("<3"), 2)
+            Clock.schedule_once(lambda dt: self.load_todo_strokes("sít rịt for ngha"), 5)
 
         return self.sm
 
@@ -3338,5 +3338,5 @@ class ChatApp(MDApp):
         self.app_in_foreground = True
         message_cache = []
         return True
-
+        
 ChatApp().run()
