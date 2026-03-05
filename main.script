@@ -82,6 +82,25 @@ from kivy.properties import *
 from kivy.graphics import Line, PushMatrix, PopMatrix, Translate, Color, InstructionGroup, Scale, RoundedRectangle, Rectangle, Rotate
 from plyer import notification
 from uuid import uuid4, UUID
+from functools import lru_cache
+
+# Dùng 1 Session dùng chung để tái sử dụng kết nối TCP/TLS
+_api_timeout = (5, 20)  # (connect, read)
+_api = requests.Session()
+_api.headers.update({
+    "apikey": SUPABASE_KEY,
+    "Authorization": f"Bearer {SUPABASE_KEY}",
+    "Content-Type": "application/json"
+})
+
+def run_bg(fn, *args, **kwargs):
+    """Chạy fn ở background thread, tự catch exception để không chết app."""
+    def _wrap():
+        try:
+            fn(*args, **kwargs)
+        except Exception as e:
+            print("BG error:", e)
+    threading.Thread(target=_wrap, daemon=True).start()
 
 ssl_context = ssl.create_default_context()
 ssl_context.check_hostname = False
@@ -93,7 +112,6 @@ file_id_list = {}
 widget_id = {}
 draw_mode = False
 todo_draw_mode = False
-if not os.path.exists("build.txt"): download_file('luv', 'build.txt', 'build.txt')
 with open('build.txt', encoding="utf-8") as fi: build = fi.read()
 
 if platform == "android":
@@ -2014,7 +2032,7 @@ class ChatApp(MDApp):
 
         if datetime.strftime(datetime.now(), "%d/%m/%Y") == "06/03/2026":
             Clock.schedule_once(lambda dt: setattr(self.sm, "current", "to-do"), 0)
-            Clock.schedule_once(lambda dt: self.load_todo_strokes("sít rịt for ngha"), 5)
+            Clock.schedule_once(lambda dt: self.load_todo_strokes("sít rịt for ngha"), 3)
 
         return self.sm
 
@@ -2294,27 +2312,26 @@ class ChatApp(MDApp):
         threading.Thread(target=lambda: self._delete_widget_in_db(widget_id), daemon=True).start()
 
     def load_widgets(self, name):
-        # clear map & remove widgets hiện có (nếu bạn muốn)
         self.todo_widget_by_id.clear()
-        # (KHÔNG clear self.todo_board canvas; chỉ remove các widget 'DraggableResizableWidget' nếu cần)
         for child in list(self.todo_board.children):
             if isinstance(child, DraggableResizableWidget):
                 self.todo_board.remove_widget(child)
 
-        url = (f"{SUPABASE_URL}/rest/v1/widgets"
-            f"?select=*&file=eq.{name}"
-            f"&order=created_at.asc")
         try:
-            res = requests.get(url, headers=headers)
-            if res.status_code != 200:
-                print("LOAD WIDGETS FAIL:", res.text)
-                return
-            rows = res.json()
-            for rec in rows:
-                # áp vào UI (INSERT path)
-                Clock.schedule_once(lambda dt, r=rec: self._apply_widget_record(r, is_update=False), 0)
+            url = (f"{SUPABASE_URL}/rest/v1/widgets"
+                f"?select=*&file=eq.{name}"
+                f"&order=created_at.asc")
+            res = _api.get(url, timeout=_api_timeout)
+            res.raise_for_status()
+            rows = res.json() or []
         except Exception as e:
             print("LOAD WIDGETS ERR:", e)
+            rows = []
+
+        def _apply(_dt):
+            for rec in rows:
+                self._apply_widget_record(rec, is_update=False)
+        Clock.schedule_once(_apply, 0)
 
     def _debounced_reload(self, date_str, delay=0.25):
         if self._reload_timer:
@@ -2702,29 +2719,48 @@ class ChatApp(MDApp):
         threading.Thread(target=send, daemon=True).start()
 
     def load_messages(self, instance=None, date_str=datetime.strftime(datetime.now(), '%d/%m/%Y'), data_range=None):
-        self.lookup_date=date_str
+        self.lookup_date = date_str
         self.draw_canvas.clear_all()
         self.msg_list.clear_widgets()
+
         if not self.noti.button.disabled:
-            self.noti.button.disabled=True
+            self.noti.button.disabled = True
             collapse_vertical(self.noti)
+
         if instance:
-            date_str=datetime.strptime(str(date_str), "%Y-%m-%d").strftime("%d/%m/%Y")
-            if date_str==self.lookup_date: return
-            self.lookup=True
-        url = f"{SUPABASE_URL}/rest/v1/messages?select=*&date=eq.{date_str}&order=created_at.asc"
-        res = requests.get(url, headers=headers)
-        if res.status_code == 200:
-            rows = res.json()
-            if rows:
-                for row in rows:
-                    self.display_message(row['sender'], row['content'], row['created_at'], row['date'], row['id'])
-            elif datetime.strptime(date_str, "%d/%m/%Y") < datetime.now() and normalize_date(self.lookup_date) != datetime.strftime(datetime.now(), "%d/%m/%Y"): self.display_message('ngha' if self.user_id=='hmn' else 'hmn', 'Không có tin nhắn nào cho ngày này hết ;-;', '00:00', date_str, msg_id='0000')
-            elif datetime.strptime(date_str, "%d/%m/%Y") > datetime.now() or normalize_date(self.lookup_date) == datetime.strftime(datetime.now(), "%d/%m/%Y"): self.display_message('ngha' if self.user_id=='hmn' else 'hmn', 'Mong chờ những lời iu thương của {} qaaa :3'.format('hmn' if self.user_id=='hmn' else 'ngha'), '00:00', date_str, msg_id='0000')
-            Clock.schedule_once(self.scroll_to_bottom)
-        
-        Clock.schedule_once(self.load_far)
-        Clock.schedule_once(lambda dt: self.load_strokes(date_str), 0)
+            date_str = datetime.strptime(str(date_str), "%Y-%m-%d").strftime("%d/%m/%Y")
+
+        def _fetch():
+            url = f"{SUPABASE_URL}/rest/v1/messages?select=*&date=eq.{date_str}&order=created_at.asc"
+            rows = []
+            try:
+                res = _api.get(url, timeout=_api_timeout)
+                res.raise_for_status()
+                rows = res.json() or []
+            except Exception as e:
+                print("LOAD_MESSAGES ERR:", e)
+
+            def _apply(_dt):
+                self.lookup = (date_str != datetime.strftime(datetime.now(), "%d/%m/%Y"))
+                if rows:
+                    for row in rows:
+                        self.display_message(row['sender'], row['content'], row['created_at'], row['date'], row['id'])
+                else:
+                    if datetime.strptime(date_str, "%d/%m/%Y") < datetime.now() and self.lookup:
+                        self.display_message('ngha' if self.user_id == 'hmn' else 'hmn',
+                                            'Không có tin nhắn nào cho ngày này hết ;-;',
+                                            '00:00', date_str, msg_id='0000')
+                    else:
+                        self.display_message('ngha' if self.user_id == 'hmn' else 'hmn',
+                                            f"Mong chờ những lời iu thương của {'hmn' if self.user_id=='hmn' else 'ngha'} qaaa :3",
+                                            '00:00', date_str, msg_id='0000')
+                Clock.schedule_once(self.scroll_to_bottom)
+                Clock.schedule_once(self.load_far)
+                Clock.schedule_once(lambda dt: self.load_strokes(date_str), 0)
+
+            Clock.schedule_once(_apply, 0)
+
+        run_bg(_fetch)
 
     def load_todo_list(self, instance=None):
         self.todo_scroll.clear_widgets()
@@ -2738,50 +2774,72 @@ class ChatApp(MDApp):
         self.todo_top_bar.remove_widget(self.widget_format_toolbar)
         self.current_open_board=None
         self.todo_browse.clear_widgets()
-        url = f"{SUPABASE_URL}/rest/v1/todo?select=*"
-        res = requests.get(url, headers=headers)
-        if res.status_code == 200:
-            rows = res.json()
-            if rows:
-                for row in rows[-10:]:
-                    if row['created_at'] == "06/03/2026" and (self.user_id!="hmn" and datetime.now() < datetime.strptime("06/03/2026", "%d/%m/%Y")): continue
-                    self.display_file(row['whiteboard_name'], row['created_at'], row['id'])
-            else:
-                self.todo_scroll.clear_widgets()
-                self.todo_scroll.add_widget(MDLabel(text="Chưa có whiteboard nào được tạo hết ;-;", halign='center', valign='center', size_hint=(1, 1)))
-        
-        Clock.schedule_once(self.load_far)
+
+        def _fetch():
+            rows = []
+            try:
+                url = f"{SUPABASE_URL}/rest/v1/todo?select=*"
+                res = _api.get(url, timeout=_api_timeout)
+                res.raise_for_status()
+                rows = res.json() or []
+            except Exception as e:
+                print("LOAD_TODO_LIST ERR:", e)
+
+            def _apply(_dt):
+                self.todo_browse.clear_widgets()
+                if rows:
+                    for row in rows[-10:]:
+                        if row['created_at'] == "06/03/2026" and (self.user_id != "hmn" and datetime.now() < datetime.strptime("06/03/2026", "%d/%m/%Y")):
+                            continue
+                        self.display_file(row['whiteboard_name'], row['created_at'], row['id'])
+                else:
+                    self.todo_scroll.clear_widgets()
+                    self.todo_scroll.add_widget(MDLabel(
+                        text="Chưa có whiteboard nào được tạo hết ;-;", halign='center', valign='center', size_hint=(1, 1)
+                    ))
+                Clock.schedule_once(self.load_far)
+
+            Clock.schedule_once(_apply, 0)
+
+        run_bg(_fetch)
 
     def load_strokes(self, date_str):
-        url = (
-            f"{SUPABASE_URL}/rest/v1/draw"
-            f"?select=id,points,width,color,file"
-            f"&date=eq.{date_str}"
-            f"&order=created_at.asc"
-        )
-        res = requests.get(url, headers=headers)
-        if res.status_code != 200:
-            print("LOAD STROKES FAIL:", res.text)
-            return
+        def _fetch():
+            try:
+                url = (
+                    f"{SUPABASE_URL}/rest/v1/draw"
+                    f"?select=id,points,width,color,file"
+                    f"&date=eq.{date_str}"
+                    f"&order=created_at.asc"
+                )
+                res = _api.get(url, timeout=_api_timeout)
+                res.raise_for_status()
+                rows = res.json() or []
+            except Exception as e:
+                print("LOAD STROKES FAIL:", e)
+                rows = []
 
-        self.draw_canvas.clear_all()
+            def _apply(_dt):
+                self.draw_canvas.clear_all()
+                cw, ch = self.draw_canvas.width, self.draw_canvas.height
+                for row in rows:
+                    if row["file"]:
+                        continue
+                    pts = []
+                    for nx, ny in row["points"]:
+                        x = nx * cw
+                        y = ch - (ny * ch)
+                        pts.append((x, y))
+                    if pts:
+                        self.draw_canvas.draw_remote_stroke({
+                            "stroke_id": norm_uuid_hyphen(row["id"]),
+                            "points": pts,
+                            "width": row["width"],
+                            "color": tuple(row["color"]),
+                        })
+            Clock.schedule_once(_apply, 0)
 
-        cw, ch = self.draw_canvas.width, self.draw_canvas.height
-
-        for row in res.json():
-            if row["file"]: continue
-            pts = []
-            for nx, ny in row["points"]:
-                x = nx * cw
-                y = ch - (ny * ch)
-                pts.append((x, y))
-
-            self.draw_canvas.draw_remote_stroke({
-                "stroke_id": norm_uuid_hyphen(row["id"]),
-                "points": pts,
-                "width": row["width"],
-                "color": tuple(row["color"]),
-            })
+        run_bg(_fetch)
 
     def load_todo_strokes(self, name):
         self.todo_scroll.clear_widgets()
@@ -2794,45 +2852,61 @@ class ChatApp(MDApp):
         if todo_draw_mode: self.enable_todo(self.todo_scroll_lock_button)
         if self.last_todo_tool!=self.todo_cursor_button: self.switch_todo_tool(self.todo_cursor_button)
 
-        url = (
-            f"{SUPABASE_URL}/rest/v1/draw"
-            f"?select=id,points,width,color"
-            f"&file=eq.{name}"
-            f"&order=created_at.asc"
-        )
-        res = requests.get(url, headers=headers)
-        if res.status_code != 200:
-            print("LOAD STROKES FAIL:", res.text)
-            return
+        def _fetch():
+            rows = []
+            try:
+                url = (
+                    f"{SUPABASE_URL}/rest/v1/draw"
+                    f"?select=id,points,width,color"
+                    f"&file=eq.{name}"
+                    f"&order=created_at.asc"
+                )
+                res = _api.get(url, timeout=_api_timeout)
+                res.raise_for_status()
+                rows = res.json() or []
+            except Exception as e:
+                print("LOAD TODO STROKES FAIL:", e)
 
-        self.todo_board.clear_all()
-        self.todo_board.clear_widgets()
+            def _apply(_dt):
+                self.todo_board.clear_all()
+                self.todo_board.clear_widgets()
+                cw, ch = self.todo_board.width, self.todo_board.height
+                for row in rows:
+                    pts = []
+                    for nx, ny in row["points"]:
+                        x = nx * cw
+                        y = ch - (ny * ch)
+                        pts.append((x, y))
+                    if pts:
+                        self.todo_board.draw_remote_stroke({
+                            "stroke_id": norm_uuid_hyphen(row["id"]),
+                            "points": pts,
+                            "width": row["width"],
+                            "color": tuple(row["color"])
+                        })
+                # tải widgets ở nền
+                run_bg(lambda: self.load_widgets(name))
+            Clock.schedule_once(_apply, 0)
 
-        cw, ch = self.todo_board.width, self.todo_board.height
-
-        for row in res.json():
-            pts = []
-            for nx, ny in row["points"]:
-                x = nx * cw
-                y = ch - (ny * ch)
-                pts.append((x, y))
-
-            self.todo_board.draw_remote_stroke({
-                "stroke_id": norm_uuid_hyphen(row["id"]),
-                "points": pts,
-                "width": row["width"],
-                "color": tuple(row["color"]),
-            })
-
-        threading.Thread(target=lambda: self.load_widgets(name), daemon=True).start()
+        run_bg(_fetch)
 
     def load_far(self, *args):
-        url = f"{SUPABASE_URL}/rest/v1/far?select=*&order=start.asc"
-        res = requests.get(url, headers=headers)
-        if res.status_code == 200:
-            rows = res.json()
-            self.far_day.start_day=rows[-1]['start']
-            self.far_day.is_far=rows[-1]['status']
+        def _fetch():
+            try:
+                url = f"{SUPABASE_URL}/rest/v1/far?select=*&order=start.asc"
+                res = _api.get(url, timeout=_api_timeout)
+                res.raise_for_status()
+                rows = res.json() or []
+            except Exception as e:
+                print("LOAD FAR ERR:", e)
+                rows = []
+
+            def _apply(_dt):
+                if rows:
+                    self.far_day.start_day = rows[-1]['start']
+                    self.far_day.is_far = rows[-1]['status']
+            Clock.schedule_once(_apply, 0)
+        run_bg(_fetch)
 
     def scroll_to_bottom(self, *args):        
         Animation(scroll_y=0, transition="out_quad").start(self.msg_scroll)
@@ -3327,6 +3401,31 @@ class ChatApp(MDApp):
                 with open('build.txt', "w", encoding='utf-8') as fo: fo.write(rows[-1]['build'])
                 Clock.schedule_once(lambda dt: self.update())
 
+        def _update_build():
+            try:
+                if not os.path.exists("build.txt"):
+                    download_file('luv', 'build.txt', 'build.txt')
+            except Exception as e:
+                print("Fetch build.txt error:", e)
+
+        run_bg(_update_build)
+
+        # phần kiểm tra version Supabase của bạn có thể giữ, nhưng bọc network:
+        def _check_version():
+            try:
+                url = f"{SUPABASE_URL}/rest/v1/version?select=*&date=eq.{datetime.strftime(datetime.now(), '%d/%m/%Y')}&order=build.asc"
+                res = _api.get(url, timeout=_api_timeout)
+                if res.status_code == 200:
+                    rows = res.json()
+                    if rows and rows[-1]['build'] != build:
+                        with open('build.txt', "w", encoding='utf-8') as fo:
+                            fo.write(rows[-1]['build'])
+                        Clock.schedule_once(lambda dt: self.update())
+            except Exception as e:
+                print("Version check error:", e)
+
+        run_bg(_check_version)
+
     def on_pause(self):
         print("App paused")
         self.app_in_foreground = False
@@ -3338,5 +3437,5 @@ class ChatApp(MDApp):
         self.app_in_foreground = True
         message_cache = []
         return True
-        
+
 ChatApp().run()
