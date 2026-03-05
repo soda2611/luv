@@ -3275,18 +3275,19 @@ class ChatApp(MDApp):
                                         Clock.schedule_once(_remove, 0)
                                 continue
 
-                            if data.get("event") in ("INSERT", "UPDATE") and data.get("topic") == "realtime:public:widgets":
-                                rec = record
-                                # Bỏ qua echo của chính mình (nếu muốn)
-                                if rec.get("sender") == self.user_id:
+                            if data.get("event") in ("INSERT", "UPDATE"):
+                                if data.get("topic") == "realtime:public:widgets":
+                                    rec = record
+                                    # Bỏ qua echo của chính mình (nếu muốn)
+                                    if rec.get("sender") == self.user_id:
+                                        continue
+                                    # Áp vào UI (nếu là UPDATE, _apply_widget_record sẽ cập nhật thuộc tính)
+                                    Clock.schedule_once(lambda dt, r=rec: self._apply_widget_record(r, is_update=(data.get("event")=="UPDATE")), 0)
                                     continue
-                                # Áp vào UI (nếu là UPDATE, _apply_widget_record sẽ cập nhật thuộc tính)
-                                Clock.schedule_once(lambda dt, r=rec: self._apply_widget_record(r, is_update=(data.get("event")=="UPDATE")), 0)
-                                continue
 
-                            if data.get("event") == "UPDATE" and data["topic"] == "realtime:public:version" and datetime.strptime(record["date"], "%d/%m/%Y").date() >= datetime.now().date() and build!=record["build"]:
-                                with open('build.txt', "w", encoding='utf-8') as fo: fo.write(record['build'])
-                                Clock.schedule_once(lambda dt: self.update())
+                                if data["topic"] == "realtime:public:version" and datetime.strptime(record["date"], "%d/%m/%Y").date() >= datetime.now().date() and build!=record["build"]:
+                                    with open('build.txt', "w", encoding='utf-8') as fo: fo.write(record['build'])
+                                    Clock.schedule_once(lambda dt: self.update())
 
                             if data.get("event") == "INSERT":
                                 if data["topic"] == "realtime:public:reaction":
