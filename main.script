@@ -2083,7 +2083,7 @@ class ChatApp(MDApp):
                                        hint_text_color_focus=primarycolor, text_color_focus=primarycolor,
                                        fill_color_normal=boxbg, size_hint=(1, None), height=dp(36))
         self.wl_pr_box = MDBoxLayout(size_hint=(1, None), height=dp(40), spacing=dp(10))
-        self.wl_pr_label = MDLabel(text="Mức ưu tiên: 3", size_hint=(None, None), width=dp(80),
+        self.wl_pr_label = MDLabel(text="Mức ưu tiên: 3", size_hint=(None, None), width=dp(90),
                                    theme_text_color="Custom", text_color=primarycolor,
                                    font_style="Caption", halign="left", valign="center", pos_hint={"center_y": 0.5})
         self.wl_pr_slider = MDSlider(step=1, hint=False, color=menubg, thumb_color_active=btn,
