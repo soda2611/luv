@@ -64,6 +64,7 @@ from kivymd.uix.button import MDIconButton, MDFillRoundFlatButton, MDFillRoundFl
 from kivymd.uix.dialog import MDDialog
 from kivymd.uix.menu import MDDropdownMenu
 from kivymd.uix.pickers import MDDatePicker
+from kivymd.uix.selectioncontrol import MDCheckbox
 from kivymd.uix.slider.slider import MDSlider
 from kivymd.uix.scrollview import ScrollView
 from kivymd.uix.card import MDCard
@@ -110,6 +111,7 @@ message_cache = []
 msg_id_list = {}
 file_id_list = {}
 widget_id = {}
+wishlist_id = {}
 draw_mode = False
 todo_draw_mode = False
 with open('build.txt', encoding="utf-8") as fi: build = fi.read()
@@ -2033,6 +2035,92 @@ class ChatApp(MDApp):
         if datetime.strftime(datetime.now(), "%d/%m/%Y") == "06/03/2026":
             Clock.schedule_once(lambda dt: setattr(self.sm, "current", "to-do"), 0)
             Clock.schedule_once(lambda dt: self.load_todo_strokes("sít rịt for ngha"), 3)
+        # ==== WISHLIST: screen + open button (inline form on screen) ====
+        self.wishlist_screen = MDScreen(name="wishlist")
+        wishlist_layout = MDBoxLayout(orientation="vertical",
+                                      padding=[dp(20), dp(10), dp(20), dp(35)],
+                                      spacing=dp(10), md_bg_color=bg)
+
+        self.wishlist_top_bar = MDBoxLayout(size_hint=(1, None), height=dp(50), padding=dp(5), spacing=dp(10))
+        self.wishlist_back_btn = MDFillRoundFlatIconButton(
+            icon="arrow-left",
+            text="Wishlist",
+            theme_text_color="Custom",
+            text_color=primarycolor,
+            theme_icon_color="Custom",
+            icon_color=primarycolor,
+            md_bg_color=bg,
+            pos_hint={"center_y": 0.5},
+            on_release=lambda *_: setattr(self.sm, "current", "chat")
+        )
+        self.wishlist_top_bar.add_widget(self.wishlist_back_btn)
+
+        self.wishlist_scroll = ScrollView(size_hint=(1, 1), scroll_type=['bars', 'content'])
+        self.wishlist_list = MDBoxLayout(orientation="vertical", size_hint=(1, None),
+                                         spacing=dp(10), padding=[0, dp(10), 0, dp(10)])
+        self.wishlist_list.bind(minimum_height=self.wishlist_list.setter('height'))
+        self.wishlist_scroll.add_widget(self.wishlist_list)
+
+        self.wishlist_form_wrap = MDCard(orientation="vertical", size_hint=(1, None), height=dp(225),
+                                    padding=[dp(12), dp(12), dp(12), dp(12)], spacing=dp(8),
+                                    md_bg_color=boxbg, radius=[dp(16), dp(16), dp(16), dp(16)], elevation=0)
+        
+        self.wishlist_form_scroll = ScrollView(size_hint=(1, 1), scroll_type=['bars', 'content'])
+        self.wishlist_form_wrap.add_widget(self.wishlist_form_scroll)
+
+        self.wishlist_form = MDBoxLayout(orientation="vertical", size_hint=(1, None))
+
+        self.wishlist_form.bind(minimum_height=self.wishlist_form.setter("height"))
+
+        self.wl_content = MDTextField(hint_text="Nội dung (bắt buộc)",
+                                      line_color_normal=boxbg, line_color_focus=boxbg,
+                                      hint_text_color=[0.75 - i for i in primarycolor],
+                                      hint_text_color_focus=primarycolor, text_color_focus=primarycolor,
+                                      fill_color_normal=boxbg, multiline=True, size_hint=(1, None), height=dp(72))
+        self.wl_category = MDTextField(hint_text="Category (vd: books, travel...)",
+                                       line_color_normal=boxbg, line_color_focus=boxbg,
+                                       hint_text_color=[0.75 - i for i in primarycolor],
+                                       hint_text_color_focus=primarycolor, text_color_focus=primarycolor,
+                                       fill_color_normal=boxbg, size_hint=(1, None), height=dp(36))
+        self.wl_pr_box = MDBoxLayout(size_hint=(1, None), height=dp(40), spacing=dp(10))
+        self.wl_pr_label = MDLabel(text="Priority: 3", size_hint=(None, None), width=dp(75),
+                                   theme_text_color="Custom", text_color=primarycolor,
+                                   font_style="Caption", halign="left", valign="center", pos_hint={"center_y": 0.5})
+        self.wl_pr_slider = MDSlider(step=1, hint=False, color=menubg, thumb_color_active=btn,
+                                     thumb_color_inactive=btn, show_off=False, min=1, max=5, value=3)
+        self.wl_pr_slider.bind(value=lambda inst, val: setattr(self.wl_pr_label, "text", f"Priority: {int(val)}"))
+        self.wl_pr_box.add_widget(self.wl_pr_label)
+        self.wl_pr_box.add_widget(self.wl_pr_slider)
+        self.wl_fin_box = MDBoxLayout(size_hint=(1, None), height=dp(34), spacing=dp(10))
+        self.wl_fin_label = MDLabel(text="Đánh dấu hoàn thành luôn",
+                                    theme_text_color="Custom", text_color=primarycolor,
+                                    halign="left", valign="center", size_hint=(1, 1))
+        self.wl_fin_switch = MDCheckbox(active=False, pos_hint={"center_y": 0.5}, size_hint=(None, None), height=dp(50), width=dp(50), color_active=bg, color_inactive=bg)
+        self.wl_fin_box.add_widget(self.wl_fin_label)
+        self.wl_fin_box.add_widget(self.wl_fin_switch)
+        self.wl_btn_row = MDBoxLayout(size_hint=(1, None), height=dp(50), spacing=dp(10))
+        self.wl_save_btn = MDFillRoundFlatButton(text="Lưu", md_bg_color=btn, text_color='white',
+                                                 on_release=lambda *_: self.save_new_wishlist())
+        self.wl_clear_btn = MDFillRoundFlatButton(text="Xoá nội dung", md_bg_color=menubg, text_color='white',
+                                                  on_release=lambda *_: self.clear_wishlist_form())
+        self.wl_btn_row.add_widget(MDBoxLayout(size_hint=(1, 1)))
+        self.wl_btn_row.add_widget(self.wl_clear_btn)
+        self.wl_btn_row.add_widget(self.wl_save_btn)
+
+        self.wishlist_form.add_widget(self.wl_content)
+        self.wishlist_form.add_widget(self.wl_category)
+        self.wishlist_form.add_widget(self.wl_pr_box)
+        self.wishlist_form.add_widget(self.wl_fin_box)
+        self.wishlist_form_wrap.add_widget(self.wl_btn_row)
+
+        wishlist_layout.add_widget(self.wishlist_top_bar)
+        wishlist_layout.add_widget(MDBoxLayout(size_hint=(1, None), md_bg_color=btn, height=dp(2)))
+        wishlist_layout.add_widget(self.wishlist_scroll)
+        wishlist_layout.add_widget(self.wishlist_form_wrap)
+        self.wishlist_form_scroll.add_widget(self.wishlist_form)
+
+        self.wishlist_screen.add_widget(wishlist_layout)
+        self.sm.add_widget(self.wishlist_screen)
 
         return self.sm
 
@@ -2540,6 +2628,15 @@ class ChatApp(MDApp):
                 "theme_trailing_icon_color": "Custom",
                 "trailing_icon_color": primarycolor,
                 "on_release": self.open_todo_board,
+                "disabled": True if draw_mode else False
+            },
+            {
+                "text": "Wishlist",
+                "text_color": primarycolor,
+                "trailing_icon": "creation",
+                "theme_trailing_icon_color": "Custom",
+                "trailing_icon_color": primarycolor,
+                "on_release": self.open_wishlist_screen,
                 "disabled": True if draw_mode else False
             },
             {
@@ -3238,6 +3335,13 @@ class ChatApp(MDApp):
                             "ref": 7
                         }))
 
+                        await ws.send(json.dumps({
+                            "topic": "realtime:public:wishlist",
+                            "event": "phx_join",
+                            "payload": {},
+                            "ref": 8
+                        }))
+
                         while True:
                             msg = await ws.recv()
                             data = json.loads(msg)
@@ -3273,7 +3377,20 @@ class ChatApp(MDApp):
                                                 self.todo_board.remove_widget(wdg)
 
                                         Clock.schedule_once(_remove, 0)
+                                    if data["topic"] == "realtime:public:wishlist":
+                                        item=wishlist_id.pop(record["id"], None)
+                                        if len(wishlist_id)==0: Clock.schedule_once(lambda dt: self.load_wishlist())
+                                        else: Clock.schedule_once(lambda dt: self.wishlist_list.remove_widget(item))
                                 continue
+
+                            if data.get("event") == "UPDATE":
+                                if data.get("topic") == "realtime:public:wishlist":
+                                    def apply(*args):
+                                        wishlist_id[record["id"]].toggle_btn.icon = "check-circle" if bool(record["finished"]) else "checkbox-blank-circle-outline"
+                                        wishlist_id[record["id"]].finished = bool(record["finished"])
+                                        wishlist_id[record["id"]].opacity = 0.75 if wishlist_id[record["id"]].finished else 1
+
+                                    Clock.schedule_once(apply)
 
                             if data.get("event") in ("INSERT", "UPDATE"):
                                 if data.get("topic") == "realtime:public:widgets":
@@ -3290,25 +3407,28 @@ class ChatApp(MDApp):
                                     Clock.schedule_once(lambda dt: self.update())
 
                             if data.get("event") == "INSERT":
+                                if data["topic"] == "realtime:public:wishlist":
+                                    if len(wishlist_id)==0: Clock.schedule_once(lambda dt: self.load_wishlist())
+                                    else: Clock.schedule_once(lambda dt: self.display_wishlist_item(record))
                                 if data["topic"] == "realtime:public:reaction":
                                     w, h = Window.size
                                     if record["sender"] != self.user_id:
                                         Clock.schedule_once(lambda dt, r=record: self.spawn_emoji(pos=(r["x"] * w, r["y"] * h)))
-                                elif data["topic"] == "realtime:public:draw":
+                                if data["topic"] == "realtime:public:draw":
                                     if record["file"] and record["file"] == self.current_open_board and record["sender"] != self.user_id:
                                         with self._todo_draw_lock:
                                             self._todo_draw_queue.append(record)
                                     elif record["sender"] != self.user_id and normalize_date(record["date"]) == normalize_date(self.lookup_date):
                                         with self._draw_lock:
                                             self._draw_queue.append(record)
-                                elif data["topic"] == "realtime:public:far":
+                                if data["topic"] == "realtime:public:far":
                                     self.far_day.start_day=record["start"]
                                     self.far_day.is_far=record["status"]
-                                elif data["topic"] == "realtime:public:todo":
+                                if data["topic"] == "realtime:public:todo":
                                     Clock.schedule_once(lambda dt: self.todo_scroll.clear_widgets())
                                     Clock.schedule_once(lambda dt: self.todo_scroll.add_widget(self.todo_browse))
                                     Clock.schedule_once(lambda dt: self.display_file(record["whiteboard_name"], record["created_at"], record["id"]))
-                                else:
+                                if data["topic"] == "realtime:public:messages":
                                     sender = record["sender"]
                                     content = record["content"]
                                     timestamp = record["created_at"]
@@ -3438,5 +3558,166 @@ class ChatApp(MDApp):
         self.app_in_foreground = True
         message_cache = []
         return True
+
+    def open_wishlist_screen(self):
+        self.menu.dismiss()
+        self.sm.current='wishlist'
+        Clock.schedule_once(lambda dt: self.load_wishlist())
+
+    def load_wishlist(self):
+        self.wishlist_list.clear_widgets()
+        def _fetch():
+            rows = []
+            try:
+                url = (f"{SUPABASE_URL}/rest/v1/wishlist"
+                       f"?select=*&order=finished.asc&order=category.asc&order=priority.desc")
+                res = _api.get(url, timeout=_api_timeout)
+                res.raise_for_status()
+                rows = res.json() or []
+            except Exception as e:
+                print("LOAD_WISHLIST ERR:", e)
+            def _apply(_dt):
+                self.wishlist_list.clear_widgets()
+                if not rows:
+                    self.wishlist_list.add_widget(MDLabel(text="Chưa có mục wishlist nào ;-;",
+                                                          halign='center', valign='center',
+                                                          size_hint=(1, None), height=dp(50)))
+                else:
+                    for r in rows:
+                        self.display_wishlist_item(r)
+
+            Clock.schedule_once(_apply, 0)
+
+        run_bg(_fetch)
+
+    def display_wishlist_item(self, row):
+        global wishlist_id
+
+        item_id = row.get("id")
+        content = (row.get("content") or "").strip()
+        category = (row.get("category") or "").strip()
+        priority = int(row.get("priority") or 0)
+
+        def _priority_color(p):
+            if p >= 5: return (1, 0.25, 0.25, 1)
+            if p == 4: return (1, 0.5, 0.2, 1)
+            if p == 3: return (1, 0.8, 0.2, 1)
+            if p == 2: return (0.3, 0.75, 0.35, 1)
+            if p == 1: return (0.25, 0.6, 1, 1)
+
+        pr_color = _priority_color(priority)
+        card = MDCard(orientation="vertical", size_hint=(1, None),
+                      padding=[dp(10), dp(10), dp(10), dp(10)], spacing=dp(5),
+                      md_bg_color=boxbg[:-1]+(0.25,), radius=[dp(10), dp(10), dp(10), dp(10)],
+                      elevation=0)
+
+        card.finished = bool(row.get("finished"))
+        status_icon = "check-circle" if card.finished else "checkbox-blank-circle-outline"
+        header = MDBoxLayout(size_hint=(1, None), height=dp(28), spacing=dp(8))
+        left = MDBoxLayout(size_hint=(1, 1))
+        card.toggle_btn = MDIconButton(icon=status_icon, theme_icon_color="Custom", icon_color=pr_color,
+                                  pos_hint={"center_y": 0.5},
+                                  on_release=lambda *_: self.toggle_wishlist_finished(item_id, not card.finished))
+
+        title = MDLabel(text=format_text_with_fonts(content if content else "(Không có nội dung)"),
+                        theme_text_color="Custom", text_color=primarycolor, markup=True,
+                        halign="left", size_hint=(1, None), height=dp(24), shorten=True)
+
+        left.add_widget(card.toggle_btn)
+        left.add_widget(title)
+
+        del_btn = MDIconButton(icon="delete", theme_icon_color="Custom", icon_color=(1, 0.2, 0.2, 1),
+                               pos_hint={"center_y": 0.5},
+                               on_release=lambda *_: self.delete_wishlist_item(item_id))
+
+        header.add_widget(left)
+        header.add_widget(del_btn)
+        meta = MDBoxLayout(size_hint=(1, None), height=dp(26), spacing=dp(6))
+
+        if category:
+            chip = MDCard(size_hint=(None, None), height=dp(22), padding=[dp(8), dp(2), dp(8), dp(2)],
+                          radius=dp(11), md_bg_color=menubg)
+
+            chip.add_widget(MDLabel(text=format_text_with_fonts(f"#{category}"), markup=True,
+                                    theme_text_color="Custom", text_color=primarycolor,
+                                    size_hint=(None, 1), width=dp(80), halign="center", valign="center"))
+
+            meta.add_widget(chip)
+
+        pr_chip = MDCard(size_hint=(None, None), height=dp(22), padding=[dp(8), dp(2), dp(8), dp(2)],
+                         radius=dp(11), md_bg_color=pr_color)
+
+        pr_chip.add_widget(MDLabel(text=f"P{priority}", theme_text_color="Custom", text_color=(1,1,1,1),
+                                   size_hint=(None, 1), width=dp(40), halign="center", valign="center"))
+
+        meta.add_widget(pr_chip)
+
+        accent = MDBoxLayout(size_hint=(1, None), height=dp(2))
+        accent.md_bg_color = pr_color
+        card.add_widget(header)
+        card.add_widget(meta)
+        card.add_widget(accent)
+
+        if card.finished:
+            card.opacity = 0.75
+
+        self.wishlist_list.add_widget(card)
+        wishlist_id[item_id] = card
+
+    def clear_wishlist_form(self):
+        self.wl_content.text = ""
+        self.wl_category.text = ""
+        self.wl_pr_slider.value = 3
+        self.wl_fin_switch.active = False
+
+
+    def save_new_wishlist(self):
+        payload = {
+            "content": (self.wl_content.text or "").strip(),
+            "category": (self.wl_category.text or "").strip(),
+            "priority": int(self.wl_pr_slider.value),
+            "finished": bool(self.wl_fin_switch.active),
+        }
+
+        if not payload["content"]:
+            print("Vui lòng nhập nội dung wishlist.")
+            return
+
+        def send():
+            try:
+                url = f"{SUPABASE_URL}/rest/v1/wishlist"
+                res = requests.post(url, headers=headers, json=payload)
+                if res.status_code not in (200, 201):
+                    print("WISHLIST CREATE FAIL:", res.text)
+            except Exception as e:
+                print("WISHLIST CREATE ERR:", e)
+            finally:
+                Clock.schedule_once(lambda dt: self.clear_wishlist_form())
+
+        threading.Thread(target=send, daemon=True).start()
+
+    def toggle_wishlist_finished(self, item_id: int, new_value: bool):
+        def send():
+            try:
+                url = f"{SUPABASE_URL}/rest/v1/wishlist?id=eq.{item_id}"
+                res = requests.patch(url, headers=headers, json={"finished": new_value})
+                if res.status_code not in (200, 204):
+                    print("WISHLIST TOGGLE FAIL:", res.text)
+            except Exception as e:
+                print("WISHLIST TOGGLE ERR:", e)
+
+        threading.Thread(target=send, daemon=True).start()
+
+    def delete_wishlist_item(self, item_id: int):
+        def send():
+            try:
+                url = f"{SUPABASE_URL}/rest/v1/wishlist?id=eq.{item_id}"
+                res = requests.delete(url, headers=headers)
+                if res.status_code not in (200, 204):
+                    print("WISHLIST DELETE FAIL:", res.text)
+            except Exception as e:
+                print("WISHLIST DELETE ERR:", e)
+
+        threading.Thread(target=send, daemon=True).start()
 
 ChatApp().run()
