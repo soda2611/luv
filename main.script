@@ -2083,12 +2083,12 @@ class ChatApp(MDApp):
                                        hint_text_color_focus=primarycolor, text_color_focus=primarycolor,
                                        fill_color_normal=boxbg, size_hint=(1, None), height=dp(36))
         self.wl_pr_box = MDBoxLayout(size_hint=(1, None), height=dp(40), spacing=dp(10))
-        self.wl_pr_label = MDLabel(text="Priority: 3", size_hint=(None, None), width=dp(75),
+        self.wl_pr_label = MDLabel(text="Mức ưu tiên: 3", size_hint=(None, None), width=dp(75),
                                    theme_text_color="Custom", text_color=primarycolor,
                                    font_style="Caption", halign="left", valign="center", pos_hint={"center_y": 0.5})
         self.wl_pr_slider = MDSlider(step=1, hint=False, color=menubg, thumb_color_active=btn,
                                      thumb_color_inactive=btn, show_off=False, min=1, max=5, value=3)
-        self.wl_pr_slider.bind(value=lambda inst, val: setattr(self.wl_pr_label, "text", f"Priority: {int(val)}"))
+        self.wl_pr_slider.bind(value=lambda inst, val: setattr(self.wl_pr_label, "text", f"Mức ưu tiên: {int(val)}"))
         self.wl_pr_box.add_widget(self.wl_pr_label)
         self.wl_pr_box.add_widget(self.wl_pr_slider)
         self.wl_fin_box = MDBoxLayout(size_hint=(1, None), height=dp(34), spacing=dp(10))
