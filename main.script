@@ -300,7 +300,7 @@ def norm_to_widget(board, nx, ny, nw, nh):
     return (nx * board.width, ny * board.height, nw * board.width, nh * board.height)
 
 Window.minimum_width, Window.minimum_height = 400, 500
-Window.softinput_mode = "below_target"
+Window.softinput_mode = "resize"
 
 bg = (255/255, 242/255, 242/255, 1)
 boxbg = (250/255, 212/255, 212/255, 1)
