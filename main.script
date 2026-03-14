@@ -2078,7 +2078,7 @@ class ChatApp(MDApp):
                                       hint_text_color_focus=primarycolor, text_color_focus=primarycolor,
                                       fill_color_normal=boxbg, size_hint=(1, None), height=dp(36))
         self.wl_pr_box = MDBoxLayout(size_hint=(1, None), height=dp(40), spacing=dp(10))
-        self.wl_pr_label = MDLabel(text=f"[size={int(dp(14))}]{self._priority_icon(3)}[/size] Mức ưu tiên: 3", size_hint=(None, None), width=dp(120),
+        self.wl_pr_label = MDLabel(text=f"[size={int(dp(14))}]{self._priority_icon(3)}[/size] Mức ưu tiên: 3", size_hint=(None, None), width=dp(115),
                                    theme_text_color="Custom", text_color=primarycolor, markup=True,
                                    font_style="Caption", halign="left", valign="center", pos_hint={"center_y": 0.5})
         self.wl_pr_slider = MDSlider(step=1, hint=False, color=menubg, thumb_color_active=btn,
@@ -3573,7 +3573,7 @@ class ChatApp(MDApp):
                       md_bg_color=boxbg[:-1]+(0.25,), radius=[dp(10), dp(10), dp(10), dp(10)],
                       elevation=0)
         
-        card.bind(minumum_height=card.setter("height"))
+        card.bind(minimum_height=card.setter("height"))
 
         card.finished = bool(row.get("finished"))
         status_icon = "check-circle" if card.finished else "checkbox-blank-circle-outline"
@@ -3604,7 +3604,7 @@ class ChatApp(MDApp):
         pr_chip.bind(minimum_width=pr_chip.setter("width"))
 
         pr_chip.add_widget(MDLabel(text=f"[size={int(dp(14))}]{self._priority_icon(priority)}[/size] Mức ưu tiên: {priority}", theme_text_color="Custom", text_color=(1,1,1,1),
-                                   size_hint=(None, 1), width=dp(120), halign="center", valign="center", markup=True))
+                                   size_hint=(None, 1), width=dp(125), halign="center", valign="center", markup=True))
 
         meta.add_widget(pr_chip)
 
