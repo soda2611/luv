@@ -300,6 +300,7 @@ def norm_to_widget(board, nx, ny, nw, nh):
     return (nx * board.width, ny * board.height, nw * board.width, nh * board.height)
 
 Window.minimum_width, Window.minimum_height = 400, 500
+Window.softinput_mode = "resize"
 
 bg = (255/255, 242/255, 242/255, 1)
 boxbg = (250/255, 212/255, 212/255, 1)
@@ -2115,77 +2116,6 @@ class ChatApp(MDApp):
 
         self.wishlist_screen.add_widget(wishlist_layout)
         self.sm.add_widget(self.wishlist_screen)
-
-        # --- Keyboard manager (manual) ---
-        self._kb_open = False
-        self._kb_px = 0  # keyboard height in pixels
-
-        def _apply_keyboard_insets(h_px):
-            """
-            h_px: chiều cao bàn phím (pixel). 0 nếu đóng.
-            Mục tiêu: đẩy input_card lên và dành chỗ cho ScrollView.
-            """
-            # Tăng padding đáy của layout chính (screen 'chat')
-            # Ở layout chat bạn đang xếp: top_bar, spacer, noti, msg_scroll, input_card
-            # Ta giữ input_card vị trí cũ, và chèn khoảng trống ở dưới msg_scroll.
-            # Cách đơn giản: tăng height của input_card + margin ảo bằng cách đặt bottom padding
-            try:
-                # Đệm đáy cho container của ScrollView để nội dung không bị che
-                # (vì msg_scroll cao cố định theo màn, đệm sẽ làm vùng hiển thị còn lại tránh bị che)
-                pad = int(h_px)
-                # Bạn có input_card cao ~ dp(70); khi bàn phím mở, ta chỉ thêm khoảng trống cho scroll.
-                # Có 2 cách: (A) thay đổi padding của msg_list container;
-                # (B) thêm khoảng đệm vào dưới ScrollView.
-                # Ở đây chọn A: tăng padding-bottom của msg_list.
-
-                # msg_list hiện có: spacing & padding mặc định; ta set padding để chèn đáy
-                self.msg_list.padding = [self.msg_list.padding[0], self.msg_list.padding[1],
-                                        self.msg_list.padding[2], dp(10) + pad]
-
-                # Giữ input_card luôn thấy được: có thể dịch input_card lên một chút
-                # (không bắt buộc nếu padding đã đủ cho scroll). Nếu muốn nâng:
-                self.input_card.pos_hint = {"center_x": 0.5, "y": 0}
-                # Không dịch input_card trực tiếp; phần đệm ở msg_list giúp nội dung không bị che.
-                # Bạn có thể thêm elevation/bo góc giữ nguyên.
-
-                # Đồng bộ overlay vẽ
-                Clock.schedule_once(lambda dt: self.sync_overlay_height(), 0)
-
-                # Khi mở bàn phím, cuộn xuống đáy để thấy tin nhắn mới + input
-                if h_px > 0:
-                    Clock.schedule_once(lambda dt: self.scroll_to_bottom(), 0.05)
-            except Exception as e:
-                print("KB apply error:", e)
-
-        def _on_keyboard_height(*args):
-            """
-            Sự kiện (Android): Window.keyboard_height trả về tỉ lệ 0..1 chiều cao bàn phím.
-            """
-            try:
-                ratio = Window.keyboard_height  # 0..1
-                h_px = ratio * Window.height
-                self._kb_open = h_px > 0
-                self._kb_px = h_px
-                _apply_keyboard_insets(h_px)
-            except Exception as e:
-                print("KB height err:", e)
-
-        # Bind nếu nền tảng hỗ trợ
-        Window.bind(on_keyboard_height=lambda *a: _on_keyboard_height())
-
-        # Fallback (định kỳ kiểm tra): hữu ích trên một số phiên bản/thiết bị
-        def _kb_poll(dt):
-            try:
-                ratio = getattr(Window, "keyboard_height", 0) or 0
-                h_px = ratio * Window.height
-                if abs(h_px - self._kb_px) >= 1:  # thay đổi đáng kể
-                    self._kb_px = h_px
-                    self._kb_open = h_px > 0
-                    _apply_keyboard_insets(h_px)
-            except Exception as e:
-                print("KB poll err:", e)
-
-        Clock.schedule_interval(_kb_poll, 0.2)
 
         return self.sm
     
