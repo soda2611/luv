@@ -3572,6 +3572,8 @@ class ChatApp(MDApp):
                       padding=[dp(10), dp(10), dp(10), dp(10)], spacing=dp(5),
                       md_bg_color=boxbg[:-1]+(0.25,), radius=[dp(10), dp(10), dp(10), dp(10)],
                       elevation=0)
+        
+        card.bind(minumum_height=card.setter("height"))
 
         card.finished = bool(row.get("finished"))
         status_icon = "check-circle" if card.finished else "checkbox-blank-circle-outline"
