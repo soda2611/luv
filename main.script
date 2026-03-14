@@ -3602,7 +3602,7 @@ class ChatApp(MDApp):
         pr_chip.bind(minimum_width=pr_chip.setter("width"))
 
         pr_chip.add_widget(MDLabel(text=f"[size={int(dp(14))}]{self._priority_icon(priority)}[/size] Mức ưu tiên: {priority}", theme_text_color="Custom", text_color=(1,1,1,1),
-                                   size_hint=(None, 1), width=dp(125), halign="center", valign="center", markup=True))
+                                   size_hint=(None, 1), width=dp(130), halign="center", valign="center", markup=True))
 
         meta.add_widget(pr_chip)
 
