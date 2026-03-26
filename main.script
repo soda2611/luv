@@ -53,13 +53,14 @@ import ssl
 import json
 import re
 import colorsys
+import socket
 from datetime import datetime
 from kivymd.app import MDApp
 from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.floatlayout import MDFloatLayout
 from kivymd.uix.anchorlayout import MDAnchorLayout
 from kivymd.uix.textfield import MDTextField
-from kivymd.uix.label import MDLabel
+from kivymd.uix.label import MDLabel, MDIcon
 from kivymd.uix.button import MDIconButton, MDFillRoundFlatButton, MDFillRoundFlatIconButton
 from kivymd.uix.dialog import MDDialog
 from kivymd.uix.menu import MDDropdownMenu
@@ -83,7 +84,6 @@ from kivy.properties import *
 from kivy.graphics import Line, PushMatrix, PopMatrix, Translate, Color, InstructionGroup, Scale, RoundedRectangle, Rectangle, Rotate
 from plyer import notification
 from uuid import uuid4, UUID
-from functools import lru_cache
 
 # Dùng 1 Session dùng chung để tái sử dụng kết nối TCP/TLS
 _api_timeout = (5, 20)  # (connect, read)
@@ -298,6 +298,14 @@ def widget_to_norm(board, x, y, w, h):
 
 def norm_to_widget(board, nx, ny, nw, nh):
     return (nx * board.width, ny * board.height, nw * board.width, nh * board.height)
+
+def check_connection(host="8.8.8.8", port=53, timeout=3):
+    try:
+        socket.setdefaulttimeout(timeout)
+        socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect((host, port))
+        return True
+    except:
+        return False
 
 Window.minimum_width, Window.minimum_height = 400, 500
 Window.softinput_mode = "below_target"
@@ -2007,14 +2015,6 @@ class ChatApp(MDApp):
         todo_layout.add_widget(self.todo_scroll)
         todo_layout.add_widget(self.todo_new_whiteboard_button)
 
-        Clock.schedule_once(lambda dt: self.set_ttbgo_width(), 0)
-        Clock.schedule_once(lambda dt: self.sync_overlay_height(), 0)
-        Clock.schedule_once(lambda dt: self.load_messages(), 0)
-        Clock.schedule_once(lambda dt: self.load_todo_list(), 0)
-        Clock.schedule_interval(self._flush_draw_queue, 1 / 60)
-        Clock.schedule_interval(self._flush_todo_draw_queue, 1 / 60)
-        self.listen_realtime()
-
         self.sm = MDScreenManager(transition=MDFadeSlideTransition())
         todo = MDScreen(name="to-do")
         chat = MDScreen(name="chat")
@@ -2755,7 +2755,7 @@ class ChatApp(MDApp):
 
     def change_text(self, instance):
         if instance.text=="\u2600 <3 \u2B50":
-            instance.text=str((datetime.now() - datetime.strptime("26/11/2025", "%d/%m/%Y")).days) + " ngày iu"
+            instance.text=str((datetime.now() - datetime.strptime("26/11/2025", "%d/%m/%Y")).days) + " ngày iu 💕"
         else: instance.text="\u2600 <3 \u2B50"
 
     def send_msg(self, *args):
@@ -3476,6 +3476,8 @@ class ChatApp(MDApp):
     def on_start(self):
         global build
 
+        if not check_connection(): return
+
         url = f"{SUPABASE_URL}/rest/v1/version?select=*&date=eq.{datetime.strftime(datetime.now(), '%d/%m/%Y')}&order=build.asc"
         res = requests.get(url, headers=headers)
         if res.status_code == 200:
@@ -3609,12 +3611,13 @@ class ChatApp(MDApp):
         meta.add_widget(pr_chip)
 
         if category:
-            chip=MDLabel(text=format_text_with_fonts(f"#{category}"), markup=True,
+            chip=MDLabel(text=format_text_with_fonts(f"{category}"), markup=True,
                                     theme_text_color="Custom", text_color=primarycolor[:-1]+tuple([0.75]),
                                     size_hint=(1, 1), shorten=True)
             chip.bind(texture_size=chip.setter("texture_size"))
             chip.bind(texture_size=chip.setter("size"))
 
+            meta.add_widget(MDIcon(icon="tag", theme_text_color="Custom", text_color="btn"))
             meta.add_widget(chip)
 
         accent = MDBoxLayout(size_hint=(1, None), height=dp(2))
@@ -3681,7 +3684,5 @@ class ChatApp(MDApp):
                     print("WISHLIST DELETE FAIL:", res.text)
             except Exception as e:
                 print("WISHLIST DELETE ERR:", e)
-
-        threading.Thread(target=send, daemon=True).start()
 
 ChatApp().run()
