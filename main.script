@@ -2086,13 +2086,6 @@ class ChatApp(MDApp):
         self.wl_pr_slider.bind(value=lambda inst, val: setattr(self.wl_pr_label, "text", f"[size={int(dp(14))}]{self._priority_icon(val)}[/size] Mức ưu tiên: {int(val)}"))
         self.wl_pr_box.add_widget(self.wl_pr_label)
         self.wl_pr_box.add_widget(self.wl_pr_slider)
-        self.wl_fin_box = MDBoxLayout(size_hint=(1, None), height=dp(34), spacing=dp(10))
-        self.wl_fin_label = MDLabel(text="Đánh dấu hoàn thành",
-                                    theme_text_color="Custom", text_color=primarycolor,
-                                    halign="left", valign="center", size_hint=(1, 1))
-        self.wl_fin_switch = MDCheckbox(active=False, pos_hint={"center_y": 0.5}, size_hint=(None, None), height=dp(50), width=dp(50), color_active=bg, color_inactive=bg)
-        self.wl_fin_box.add_widget(self.wl_fin_label)
-        self.wl_fin_box.add_widget(self.wl_fin_switch)
         self.wl_btn_row = MDBoxLayout(size_hint=(1, None), height=dp(50), spacing=dp(10))
         self.wl_save_btn = MDFillRoundFlatButton(text="Lưu", md_bg_color=btn, text_color='white',
                                                  on_release=lambda *_: self.save_new_wishlist())
@@ -2105,7 +2098,6 @@ class ChatApp(MDApp):
         self.wishlist_form.add_widget(self.wl_content)
         self.wishlist_form.add_widget(self.wl_category)
         self.wishlist_form.add_widget(self.wl_pr_box)
-        self.wishlist_form.add_widget(self.wl_fin_box)
         self.wishlist_form_wrap.add_widget(self.wl_btn_row)
 
         wishlist_layout.add_widget(self.wishlist_top_bar)
@@ -3596,19 +3588,18 @@ class ChatApp(MDApp):
                                pos_hint={"center_y": 0.5},
                                on_release=lambda *_: self.delete_wishlist_item(item_id))
 
-        header.add_widget(left)
-        header.add_widget(del_btn)
-        meta = MDBoxLayout(size_hint=(1, None), height=dp(26), spacing=dp(15))
-        
         pr_chip = MDCard(size_hint=(None, None), height=dp(22), padding=[dp(8), dp(2), dp(8), dp(2)],
                          radius=dp(11), md_bg_color=pr_color)
 
         pr_chip.bind(minimum_width=pr_chip.setter("width"))
 
         pr_chip.add_widget(MDLabel(text=f"[size={int(dp(14))}]{self._priority_icon(priority)}[/size] Mức ưu tiên: {priority}", theme_text_color="Custom", text_color=(1,1,1,1),
-                                   size_hint=(None, 1), width=dp(150), halign="center", valign="center", markup=True))
+                                   size_hint=(None, 1), width=dp(140), halign="center", valign="center", markup=True))
 
-        meta.add_widget(pr_chip)
+        header.add_widget(left)
+        header.add_widget(pr_chip)
+        header.add_widget(del_btn)
+        meta = MDBoxLayout(size_hint=(1, None), height=dp(26), spacing=dp(15))
 
         if category:
             chip=MDLabel(text=format_text_with_fonts(f"{category}"), markup=True,
@@ -3617,13 +3608,13 @@ class ChatApp(MDApp):
             chip.bind(texture_size=chip.setter("texture_size"))
             chip.bind(texture_size=chip.setter("size"))
 
-            meta.add_widget(MDIcon(icon="tag", theme_text_color="Custom", text_color="btn"))
+            meta.add_widget(MDIcon(icon="tag", theme_text_color="Custom", text_color=pr_color))
             meta.add_widget(chip)
 
         accent = MDBoxLayout(size_hint=(1, None), height=dp(2))
         accent.md_bg_color = pr_color
-        card.add_widget(header)
         card.add_widget(meta)
+        card.add_widget(header)
         card.add_widget(accent)
 
         if card.finished:
@@ -3684,5 +3675,7 @@ class ChatApp(MDApp):
                     print("WISHLIST DELETE FAIL:", res.text)
             except Exception as e:
                 print("WISHLIST DELETE ERR:", e)
+
+        threading.Thread(target=send, daemon=True).start()
 
 ChatApp().run()
