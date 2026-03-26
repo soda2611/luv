@@ -2015,6 +2015,14 @@ class ChatApp(MDApp):
         todo_layout.add_widget(self.todo_scroll)
         todo_layout.add_widget(self.todo_new_whiteboard_button)
 
+        Clock.schedule_once(lambda dt: self.set_ttbgo_width(), 0)
+        Clock.schedule_once(lambda dt: self.sync_overlay_height(), 0)
+        Clock.schedule_once(lambda dt: self.load_messages(), 0)
+        Clock.schedule_once(lambda dt: self.load_todo_list(), 0)
+        Clock.schedule_interval(self._flush_draw_queue, 1 / 60)
+        Clock.schedule_interval(self._flush_todo_draw_queue, 1 / 60)
+        self.listen_realtime()
+
         self.sm = MDScreenManager(transition=MDFadeSlideTransition())
         todo = MDScreen(name="to-do")
         chat = MDScreen(name="chat")
@@ -3677,5 +3685,6 @@ class ChatApp(MDApp):
                 print("WISHLIST DELETE ERR:", e)
 
         threading.Thread(target=send, daemon=True).start()
+
 
 ChatApp().run()
