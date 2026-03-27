@@ -54,7 +54,6 @@ import json
 import re
 import colorsys
 import socket
-import pyperclip
 from datetime import datetime
 from kivymd.app import MDApp
 from kivymd.uix.boxlayout import MDBoxLayout
