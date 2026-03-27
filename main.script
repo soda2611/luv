@@ -54,6 +54,7 @@ import json
 import re
 import colorsys
 import socket
+import pyperclip
 from datetime import datetime
 from kivymd.app import MDApp
 from kivymd.uix.boxlayout import MDBoxLayout
@@ -122,6 +123,31 @@ if platform == "android":
         Permission.POST_NOTIFICATIONS,
         Permission.READ_EXTERNAL_STORAGE,
     ])
+
+def copy_text(text: str):
+    try:
+        if platform == "android":
+            from jnius import autoclass
+
+            PythonActivity = autoclass('org.kivy.android.PythonActivity')
+            Context = autoclass('android.content.Context')
+            ClipData = autoclass('android.content.ClipData')
+
+            activity = PythonActivity.mActivity
+            clipboard = activity.getSystemService(Context.CLIPBOARD_SERVICE)
+
+            clip = ClipData.newPlainText("whoop", text)
+            clipboard.setPrimaryClip(clip)
+            return True
+
+        else:
+            import pyperclip
+            pyperclip.copy(text)
+            return True
+
+    except Exception as e:
+        print("Copy error:", e)
+        return False
 
 def is_emoji(char):
     cp = ord(char)
@@ -2077,14 +2103,29 @@ class ChatApp(MDApp):
                                       line_color_normal=boxbg, line_color_focus=boxbg,
                                       hint_text_color=[0.75 - i for i in primarycolor],
                                       hint_text_color_focus=primarycolor, text_color_focus=primarycolor,
-                                      fill_color_normal=boxbg, multiline=True, size_hint=(1, None), height=dp(72))
+                                      fill_color_normal=boxbg, multiline=True, size_hint=(1, None))
         self.wl_category = MDTextField(icon_left="tag-outline",
                                       icon_left_color_focus=btn,
                                       hint_text="Danh mục",
                                       line_color_normal=boxbg, line_color_focus=boxbg,
                                       hint_text_color=[0.75 - i for i in primarycolor],
                                       hint_text_color_focus=primarycolor, text_color_focus=primarycolor,
-                                      fill_color_normal=boxbg, size_hint=(1, None), height=dp(36))
+                                      fill_color_normal=boxbg, size_hint=(1, None))
+        self.wl_note = MDTextField(icon_left="notebook-edit-outline",
+                                      icon_left_color_focus=btn,
+                                      hint_text="Ghi chú",
+                                      line_color_normal=boxbg, line_color_focus=boxbg,
+                                      hint_text_color=[0.75 - i for i in primarycolor],
+                                      hint_text_color_focus=primarycolor, text_color_focus=primarycolor,
+                                      fill_color_normal=boxbg, size_hint=(1, None))
+        
+        self.wl_link = MDTextField(icon_left="link-variant",
+                                      icon_left_color_focus=btn,
+                                      hint_text="Link",
+                                      line_color_normal=boxbg, line_color_focus=boxbg,
+                                      hint_text_color=[0.75 - i for i in primarycolor],
+                                      hint_text_color_focus=primarycolor, text_color_focus=primarycolor,
+                                      fill_color_normal=boxbg, size_hint=(1, None))
         self.wl_pr_box = MDBoxLayout(size_hint=(1, None), height=dp(40), spacing=dp(10))
         self.wl_pr_label = MDLabel(text=f"[size={int(dp(14))}]{self._priority_icon(3)}[/size] Mức ưu tiên: 3", size_hint=(None, None), width=dp(115),
                                    theme_text_color="Custom", text_color=primarycolor, markup=True,
@@ -2103,8 +2144,10 @@ class ChatApp(MDApp):
         self.wl_btn_row.add_widget(self.wl_clear_btn)
         self.wl_btn_row.add_widget(self.wl_save_btn)
 
-        self.wishlist_form.add_widget(self.wl_content)
         self.wishlist_form.add_widget(self.wl_category)
+        self.wishlist_form.add_widget(self.wl_content)
+        self.wishlist_form.add_widget(self.wl_note)
+        self.wishlist_form.add_widget(self.wl_link)
         self.wishlist_form.add_widget(self.wl_pr_box)
         self.wishlist_form_wrap.add_widget(self.wl_btn_row)
 
@@ -2249,7 +2292,7 @@ class ChatApp(MDApp):
         self.todo_board.add_widget(w)
 
         def _place(_dt):
-            w.pos = (dp(100), self.todo_board.height - dp(200))
+            w.pos = (self.todo_scroll.scroll_x * dp(100000) + dp(250), self.todo_scroll.scroll_y * dp(100000) - dp(250))
             w.size = (dp(200), dp(150))
 
         Clock.schedule_once(_place, 0)
@@ -2755,7 +2798,7 @@ class ChatApp(MDApp):
 
     def change_text(self, instance):
         if instance.text=="\u2600 <3 \u2B50":
-            instance.text=str((datetime.now() - datetime.strptime("26/11/2025", "%d/%m/%Y")).days) + " ngày iu 💕"
+            instance.text=str((datetime.now() - datetime.strptime("26/11/2025", "%d/%m/%Y")).days) + " ngày iu"
         else: instance.text="\u2600 <3 \u2B50"
 
     def send_msg(self, *args):
@@ -3560,6 +3603,8 @@ class ChatApp(MDApp):
         item_id = row.get("id")
         content = (row.get("content") or "").strip()
         category = (row.get("category") or "").strip()
+        note = (row.get("note") or "").strip()
+        link = (row.get("link") or "").strip()
         priority = int(row.get("priority") or 1)
 
         def _priority_color(p):
@@ -3580,6 +3625,7 @@ class ChatApp(MDApp):
         card.finished = bool(row.get("finished"))
         status_icon = "check-circle" if card.finished else "checkbox-blank-circle-outline"
         header = MDBoxLayout(size_hint=(1, None), height=dp(28), spacing=dp(8))
+        header_btn = MDBoxLayout(size_hint=(1, None), height=dp(28), spacing=dp(8))
         left = MDBoxLayout(size_hint=(1, 1))
         card.toggle_btn = MDIconButton(icon=status_icon, theme_icon_color="Custom", icon_color=pr_color,
                                   pos_hint={"center_y": 0.5},
@@ -3589,14 +3635,14 @@ class ChatApp(MDApp):
                         theme_text_color="Custom", text_color=primarycolor, markup=True,
                         halign="left", size_hint=(1, None), height=dp(24), shorten=True, pos_hint={"center_y": 0.5})
 
-        left.add_widget(card.toggle_btn)
-        left.add_widget(title)
-
         del_btn = MDIconButton(icon="delete", theme_icon_color="Custom", icon_color=(1, 0.2, 0.2, 1),
                                pos_hint={"center_y": 0.5},
                                on_release=lambda *_: self.delete_wishlist_item(item_id))
 
-        pr_chip = MDCard(size_hint=(None, None), height=dp(22), padding=[dp(8), dp(2), dp(8), dp(2)],
+        left.add_widget(card.toggle_btn)
+        left.add_widget(title)
+        
+        pr_chip = MDCard(size_hint=(None, 1), padding=[dp(8), dp(2), dp(8), dp(2)],
                          radius=dp(11), md_bg_color=pr_color)
 
         pr_chip.bind(minimum_width=pr_chip.setter("width"))
@@ -3605,8 +3651,15 @@ class ChatApp(MDApp):
                                    size_hint=(None, 1), width=dp(140), halign="center", valign="center", markup=True))
 
         header.add_widget(left)
-        header.add_widget(pr_chip)
-        header.add_widget(del_btn)
+        header_btn.add_widget(pr_chip)
+        
+        if link:
+            link_btn = MDFillRoundFlatIconButton(icon="link-variant", text="Link", size_hint=(None, 1),
+                                pos_hint={"center_y": 0.5}, md_bg_color=btn,
+                                on_release=lambda *_: copy_text(link))
+            header_btn.add_widget(link_btn)
+
+        header_btn.add_widget(del_btn)
         meta = MDBoxLayout(size_hint=(1, None), height=dp(26), spacing=dp(15))
 
         if category:
@@ -3618,12 +3671,22 @@ class ChatApp(MDApp):
 
             meta.add_widget(MDIcon(icon="tag", theme_text_color="Custom", text_color=pr_color))
             meta.add_widget(chip)
+            card.add_widget(meta)
 
         accent = MDBoxLayout(size_hint=(1, None), height=dp(2))
         accent.md_bg_color = pr_color
-        card.add_widget(meta)
         card.add_widget(header)
+        card.add_widget(header_btn)
         card.add_widget(accent)
+
+        if note:
+            note_label = MDLabel(text=format_text_with_fonts(f"{note}"),
+                            theme_text_color="Custom", text_color="gray", markup=True,
+                            halign="left", size_hint=(1, None), shorten=False, pos_hint={"center_x": 0.5})
+            
+            note_label.bind(texture_size=note_label.setter("texture_size"))
+            note_label.bind(texture_size=note_label.setter("size"))
+            card.add_widget(note_label)
 
         if card.finished:
             card.opacity = 0.75
@@ -3634,15 +3697,18 @@ class ChatApp(MDApp):
     def clear_wishlist_form(self):
         self.wl_content.text = ""
         self.wl_category.text = ""
+        self.wl_note.text = ""
+        self.wl_link.text = ""
         self.wl_pr_slider.value = 3
-        self.wl_fin_switch.active = False
 
     def save_new_wishlist(self):
         payload = {
             "content": (self.wl_content.text or "").strip(),
             "category": (self.wl_category.text or "").strip(),
             "priority": int(self.wl_pr_slider.value),
-            "finished": bool(self.wl_fin_switch.active),
+            "note": (self.wl_note.text or "").strip(),
+            "link": (self.wl_link.text or "").strip(),
+            "finished": False,
         }
 
         if not payload["content"]:
@@ -3685,6 +3751,5 @@ class ChatApp(MDApp):
                 print("WISHLIST DELETE ERR:", e)
 
         threading.Thread(target=send, daemon=True).start()
-
 
 ChatApp().run()
