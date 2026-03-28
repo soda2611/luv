@@ -65,7 +65,6 @@ from kivymd.uix.button import MDIconButton, MDFillRoundFlatButton, MDFillRoundFl
 from kivymd.uix.dialog import MDDialog
 from kivymd.uix.menu import MDDropdownMenu
 from kivymd.uix.pickers import MDDatePicker
-from kivymd.uix.selectioncontrol import MDCheckbox
 from kivymd.uix.slider.slider import MDSlider
 from kivymd.uix.scrollview import ScrollView
 from kivymd.uix.card import MDCard
@@ -346,6 +345,80 @@ headers = {
     "Authorization": f"Bearer {SUPABASE_KEY}",
     "Content-Type": "application/json"
 }
+
+class BelowTargetManager:
+    def __init__(self):
+        self._active_container = None
+        Window.bind(keyboard_height=self._on_keyboard)
+
+    def _find_container(self, widget):
+        """
+        Tìm container gần nhất để áp dụng below_target
+        Ưu tiên:
+        - ScrollView (native feeling nhất)
+        - ModalView / MDDialog
+        - Screen root
+        """
+        p = widget
+        while p:
+            if isinstance(p, ScrollView):
+                return p
+            if isinstance(p, ModalView):
+                return p
+            if isinstance(p, Screen):
+                return p
+            p = p.parent
+        return None
+
+    def _on_keyboard(self, window, height):
+        focused = Window.focused_widget
+
+        # Keyboard đóng → reset
+        if height == 0:
+            self._reset()
+            return
+
+        if not focused or not hasattr(focused, "to_window"):
+            return
+
+        container = self._find_container(focused)
+        if not container:
+            return
+
+        self._active_container = container
+
+        _, wy = focused.to_window(focused.x, focused.y)
+
+        if wy < height:
+            offset = height - wy + dp(8)
+            self._apply_offset(container, offset)
+        else:
+            self._apply_offset(container, 0)
+
+    def _apply_offset(self, container, offset):
+        # ScrollView → scroll thay vì pan
+        if isinstance(container, ScrollView):
+            if container.height > 0:
+                container.scroll_y = max(
+                    0,
+                    container.scroll_y - offset / container.height
+                )
+            return
+
+        # Widget thường → pan nhẹ
+        container.y = offset
+
+    def _reset(self):
+        if not self._active_container:
+            return
+
+        c = self._active_container
+        if isinstance(c, ScrollView):
+            c.scroll_y = 1
+        else:
+            c.y = 0
+
+        self._active_container = None
 
 # --- LimitedTextField ---
 class LimitedTextField(MDTextField):
@@ -1696,6 +1769,7 @@ class ToolButton(MDIconButton):
 # --- ChatApp ---
 class ChatApp(MDApp):
     def build(self):
+        self._below_target_manager = BelowTargetManager()
         def _update_ref(*args):
             global REF_W, REF_H
             REF_W, REF_H = Window.size
@@ -2160,7 +2234,7 @@ class ChatApp(MDApp):
         self.sm.add_widget(self.wishlist_screen)
 
         return self.sm
-    
+
     def _priority_icon(self, p):
         if p >= 5: return format_text_with_fonts("😍")
         if p == 4: return format_text_with_fonts("🤩")
