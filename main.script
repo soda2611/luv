@@ -364,21 +364,29 @@ class MDTextField(MDTextField):
             self.focus = False
             self.preview = org_textfield(
                 text=self.text,
-                hint_text="Nhập ở đây",
-                line_color_normal=btn,
-                line_color_focus=btn,
-                hint_text_color=[0.8 - i for i in [1, 1, 1, 1]],
-                hint_text_color_focus=[1, 1, 1, 1],
-                text_color_focus=[1, 1, 1, 1],
-                fill_color_normal=boxbg[:-1] + (0.25,),
+                hint_text=self.hint_text,
+                icon_left=self.icon_left,
+                icon_left_color_focus=self.icon_left_color_focus,
+                mode=self.mode,
+                line_color_normal=self.line_color_normal,
+                line_color_focus=self.line_color_normal,
+                hint_text_color=self.hint_text_color,
+                hint_text_color_focus=self.hint_text_color_focus,
+                text_color_focus=self.text_color_focus,
+                fill_color_normal=self.fill_color_normal,
                 pos_hint={"center_y": 0.5},
                 multiline = self.multiline,
                 on_text_validate=self.set_new_text
             )
-            self.overlay = MDCard(size_hint=(1, 1), radius=[0, 0, 0, 0], md_bg_color=[0, 0, 0, 0.5], padding=[dp(50), dp(50), dp(50), dp(50)], on_release=self.set_new_text)
+            self.preview.bind(focus=self._preview_unfocus)
+            self.overlay = MDCard(size_hint=(1, 1), radius=[0, 0, 0, 0], md_bg_color=[1, 1, 1, 0.5], padding=[dp(50), dp(50), dp(50), dp(50)], on_release=self.set_new_text)
             self.overlay.add_widget(self.preview)
             MDApp.get_running_app().root.current_screen.add_widget(self.overlay)
             Clock.schedule_once(lambda d: setattr(self.preview, "focus", True))
+
+    def _preview_unfocus(self, instance, value):
+        if not value:
+            self.set_new_text()
 
     def set_new_text(self, *args):
         self.text = self.preview.text
@@ -3787,5 +3795,5 @@ class ChatApp(MDApp):
                 print("WISHLIST DELETE ERR:", e)
 
         threading.Thread(target=send, daemon=True).start()
-
+        
 ChatApp().run()
