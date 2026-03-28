@@ -361,7 +361,6 @@ class MDTextField(MDTextField):
 
     def _on_focus(self, instance, value):
         if value:
-            self.focus = False
             self.preview = org_textfield(
                 text=self.text,
                 hint_text=self.hint_text,
@@ -382,6 +381,7 @@ class MDTextField(MDTextField):
             self.overlay = MDCard(size_hint=(1, 1), radius=[0, 0, 0, 0], md_bg_color=[1, 1, 1, 0.5], padding=[dp(50), dp(50), dp(50), dp(50)], on_release=self.set_new_text)
             self.overlay.add_widget(self.preview)
             MDApp.get_running_app().root.current_screen.add_widget(self.overlay)
+            Clock.schedule_once(lambda _: setattr(self, "focus", False), 0)
             Clock.schedule_once(lambda d: setattr(self.preview, "focus", True))
 
     def _preview_unfocus(self, instance, value):
