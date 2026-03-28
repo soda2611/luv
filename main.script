@@ -2290,7 +2290,7 @@ class ChatApp(MDApp):
         self.todo_board.add_widget(w)
 
         def _place(_dt):
-            w.pos = (self.todo_scroll.scroll_x * dp(100000) + dp(100), self.todo_scroll.scroll_y * dp(100000) - dp(250))
+            w.pos = (self.todo_scroll.scroll_x * dp(100000) + dp(50), self.todo_scroll.scroll_y * dp(100000) - dp(250))
             w.size = (dp(200), dp(150))
 
         Clock.schedule_once(_place, 0)
