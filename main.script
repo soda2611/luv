@@ -3553,8 +3553,6 @@ class ChatApp(MDApp):
         self.show_update_success()
 
     def on_start(self):
-        if platform == "android": enable_soft_input_below_target()
-
         global build
 
         if not check_connection(): return
