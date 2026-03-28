@@ -1024,7 +1024,7 @@ class ProColorPicker(MDCard):
         self.preview = MDCard(size_hint=(1, 1), line_color=btn, radius=[dp(16)], pos_hint={"center_y": 0.5})
         right.add_widget(self.preview)
 
-        self.hex_input = MDTextField(
+        self.hex_input = org_textfield(
             hint_text="HEX",
             size_hint_x=None,
             width=dp(120),
@@ -2781,7 +2781,7 @@ class ChatApp(MDApp):
     def show_uid_dialog(self, *args):
         try: self.menu.dismiss()
         except: pass
-        self.uid_input = MDTextField(hint_text="Đặt UID nề bbi <3",
+        self.uid_input = org_textfield(hint_text="Đặt UID nề bbi <3",
                                     font_name="resources/fonts/segoeui.ttf",
                                     line_color_normal=boxbg,
                                     line_color_focus=boxbg,
@@ -2805,7 +2805,7 @@ class ChatApp(MDApp):
     def show_whiteboard_dialog(self, *args):
         try: self.menu.dismiss()
         except: pass
-        self.whiteboard_input = MDTextField(hint_text="Đặt tên whiteboard nề bbi <3",
+        self.whiteboard_input = org_textfield(hint_text="Đặt tên whiteboard nề bbi <3",
                                     font_name="resources/fonts/segoeui.ttf",
                                     line_color_normal=boxbg,
                                     line_color_focus=boxbg,
@@ -3795,5 +3795,5 @@ class ChatApp(MDApp):
                 print("WISHLIST DELETE ERR:", e)
 
         threading.Thread(target=send, daemon=True).start()
-        
+
 ChatApp().run()
