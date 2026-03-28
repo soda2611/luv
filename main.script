@@ -41,7 +41,12 @@ EMOJI_LIKE = [
 ]
 REF_W = 1080
 REF_H = 1920
+BLOCKED = {
+    "parent", "children", "canvas",
+    "id", "uid", "widget_id",
+}
 
+import inspect
 import asyncio
 import os
 import requests
@@ -121,6 +126,34 @@ if platform == "android":
         Permission.POST_NOTIFICATIONS,
         Permission.READ_EXTERNAL_STORAGE,
     ])
+
+def enable_soft_input_below_target():
+    """
+    Bật hành vi IME below_target (Android 16+)
+    - IME xuất hiện bên dưới view được focus
+    - Không resize / pan toàn window
+    - Tự fallback cho Android cũ
+    """
+    from jnius import autoclass
+
+    PythonActivity = autoclass("org.kivy.android.PythonActivity")
+    activity = PythonActivity.mActivity
+    window = activity.getWindow()
+
+    # Bắt buộc cho Android 15+
+    window.setDecorFitsSystemWindows(False)
+
+    LayoutParams = autoclass("android.view.WindowManager$LayoutParams")
+
+    try:
+        # Android 16+
+        below_target = getattr(LayoutParams, "SOFT_INPUT_ADJUST_BELOW_TARGET")
+        window.setSoftInputMode(below_target)
+        print("SoftInput: BELOW_TARGET enabled")
+    except AttributeError:
+        # Android < 16 fallback
+        window.setSoftInputMode(LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
+        print("SoftInput: fallback ADJUST_NOTHING")
 
 def copy_text(text: str):
     try:
@@ -3515,6 +3548,8 @@ class ChatApp(MDApp):
         self.show_update_success()
 
     def on_start(self):
+        if platform == "android": enable_soft_input_below_target()
+
         global build
 
         if not check_connection(): return
