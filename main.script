@@ -346,80 +346,6 @@ headers = {
     "Content-Type": "application/json"
 }
 
-class BelowTargetManager:
-    def __init__(self):
-        self._active_container = None
-        Window.bind(keyboard_height=self._on_keyboard)
-
-    def _find_container(self, widget):
-        """
-        Tìm container gần nhất để áp dụng below_target
-        Ưu tiên:
-        - ScrollView (native feeling nhất)
-        - ModalView / MDDialog
-        - Screen root
-        """
-        p = widget
-        while p:
-            if isinstance(p, ScrollView):
-                return p
-            if isinstance(p, ModalView):
-                return p
-            if isinstance(p, Screen):
-                return p
-            p = p.parent
-        return None
-
-    def _on_keyboard(self, window, height):
-        focused = Window.focused_widget
-
-        # Keyboard đóng → reset
-        if height == 0:
-            self._reset()
-            return
-
-        if not focused or not hasattr(focused, "to_window"):
-            return
-
-        container = self._find_container(focused)
-        if not container:
-            return
-
-        self._active_container = container
-
-        _, wy = focused.to_window(focused.x, focused.y)
-
-        if wy < height:
-            offset = height - wy + dp(8)
-            self._apply_offset(container, offset)
-        else:
-            self._apply_offset(container, 0)
-
-    def _apply_offset(self, container, offset):
-        # ScrollView → scroll thay vì pan
-        if isinstance(container, ScrollView):
-            if container.height > 0:
-                container.scroll_y = max(
-                    0,
-                    container.scroll_y - offset / container.height
-                )
-            return
-
-        # Widget thường → pan nhẹ
-        container.y = offset
-
-    def _reset(self):
-        if not self._active_container:
-            return
-
-        c = self._active_container
-        if isinstance(c, ScrollView):
-            c.scroll_y = 1
-        else:
-            c.y = 0
-
-        self._active_container = None
-
 # --- LimitedTextField ---
 class LimitedTextField(MDTextField):
     def __init__(self, max_length=100, **kwargs):
@@ -1769,7 +1695,6 @@ class ToolButton(MDIconButton):
 # --- ChatApp ---
 class ChatApp(MDApp):
     def build(self):
-        self._below_target_manager = BelowTargetManager()
         def _update_ref(*args):
             global REF_W, REF_H
             REF_W, REF_H = Window.size
@@ -2365,7 +2290,7 @@ class ChatApp(MDApp):
         self.todo_board.add_widget(w)
 
         def _place(_dt):
-            w.pos = (self.todo_scroll.scroll_x * dp(100000) + dp(250), self.todo_scroll.scroll_y * dp(100000) - dp(250))
+            w.pos = (self.todo_scroll.scroll_x * dp(100000) + dp(100), self.todo_scroll.scroll_y * dp(100000) - dp(250))
             w.size = (dp(200), dp(150))
 
         Clock.schedule_once(_place, 0)
