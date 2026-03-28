@@ -127,33 +127,36 @@ if platform == "android":
         Permission.READ_EXTERNAL_STORAGE,
     ])
 
+
 def enable_soft_input_below_target():
-    """
-    Bật hành vi IME below_target (Android 16+)
-    - IME xuất hiện bên dưới view được focus
-    - Không resize / pan toàn window
-    - Tự fallback cho Android cũ
-    """
-    from jnius import autoclass
+    from jnius import autoclass, PythonJavaClass, java_method
 
     PythonActivity = autoclass("org.kivy.android.PythonActivity")
     activity = PythonActivity.mActivity
-    window = activity.getWindow()
 
-    # Bắt buộc cho Android 15+
-    window.setDecorFitsSystemWindows(False)
+    class Runnable(PythonJavaClass):
+        __javainterfaces__ = ["java/lang/Runnable"]
 
-    LayoutParams = autoclass("android.view.WindowManager$LayoutParams")
+        @java_method("()V")
+        def run(self):
+            window = activity.getWindow()
+            window.setDecorFitsSystemWindows(False)
 
-    try:
-        # Android 16+
-        below_target = getattr(LayoutParams, "SOFT_INPUT_ADJUST_BELOW_TARGET")
-        window.setSoftInputMode(below_target)
-        print("SoftInput: BELOW_TARGET enabled")
-    except AttributeError:
-        # Android < 16 fallback
-        window.setSoftInputMode(LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
-        print("SoftInput: fallback ADJUST_NOTHING")
+            LayoutParams = autoclass(
+                "android.view.WindowManager$LayoutParams"
+            )
+            try:
+                mode = getattr(
+                    LayoutParams,
+                    "SOFT_INPUT_ADJUST_BELOW_TARGET"
+                )
+                window.setSoftInputMode(mode)
+            except AttributeError:
+                window.setSoftInputMode(
+                    LayoutParams.SOFT_INPUT_ADJUST_NOTHING
+                )
+
+    activity.runOnUiThread(Runnable())
 
 def copy_text(text: str):
     try:
