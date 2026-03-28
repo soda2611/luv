@@ -1701,6 +1701,7 @@ class ChatApp(MDApp):
             REF_W, REF_H = Window.size
         _update_ref()
         Window.bind(size=lambda *a: _update_ref())
+        Window.bind(keyboard_height=self.on_keyboard_height)
 
         self.app_in_foreground = True
 
@@ -2161,6 +2162,18 @@ class ChatApp(MDApp):
 
         return self.sm
     
+    def on_keyboard_height(self, window, height):
+        focused = Window.focused_widget
+        if not focused:
+            return
+
+        _, wy = focused.to_window(*focused.pos)
+
+        if wy < height:
+            self.y = height - wy + 10
+        else:
+            self.y = 0
+
     def _priority_icon(self, p):
         if p >= 5: return format_text_with_fonts("😍")
         if p == 4: return format_text_with_fonts("🤩")
