@@ -41,7 +41,12 @@ EMOJI_LIKE = [
 ]
 REF_W = 1080
 REF_H = 1920
+BLOCKED = {
+    "parent", "children", "canvas",
+    "id", "uid", "widget_id",
+}
 
+import inspect
 import asyncio
 import os
 import requests
@@ -345,6 +350,39 @@ headers = {
     "Authorization": f"Bearer {SUPABASE_KEY}",
     "Content-Type": "application/json"
 }
+
+org_textfield = MDTextField
+
+class MDTextField(MDTextField):
+    def __init__(self, **kwargs):
+        super(MDTextField, self).__init__(**kwargs)
+
+        self.bind(focus=self._on_focus)
+
+    def _on_focus(self, instance, value):
+        if value:
+            self.focus = False
+            self.preview = org_textfield(
+                text=self.text,
+                hint_text="Nhập ở đây",
+                line_color_normal=btn,
+                line_color_focus=btn,
+                hint_text_color=[0.8 - i for i in [1, 1, 1, 1]],
+                hint_text_color_focus=[1, 1, 1, 1],
+                text_color_focus=[1, 1, 1, 1],
+                fill_color_normal=boxbg[:-1] + (0.25,),
+                pos_hint={"center_y": 0.5},
+                multiline = self.multiline,
+                on_text_validate=self.set_new_text
+            )
+            self.overlay = MDCard(size_hint=(1, 1), radius=[0, 0, 0, 0], md_bg_color=[0, 0, 0, 0.5], padding=[dp(50), dp(50), dp(50), dp(50)], on_release=self.set_new_text)
+            self.overlay.add_widget(self.preview)
+            MDApp.get_running_app().root.current_screen.add_widget(self.overlay)
+            Clock.schedule_once(lambda d: setattr(self.preview, "focus", True))
+
+    def set_new_text(self, *args):
+        self.text = self.preview.text
+        MDApp.get_running_app().root.current_screen.remove_widget(self.overlay)
 
 # --- LimitedTextField ---
 class LimitedTextField(MDTextField):
@@ -3515,6 +3553,8 @@ class ChatApp(MDApp):
         self.show_update_success()
 
     def on_start(self):
+        if platform == "android": enable_soft_input_below_target()
+
         global build
 
         if not check_connection(): return
