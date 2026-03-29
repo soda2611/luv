@@ -3716,21 +3716,21 @@ class ChatApp(MDApp):
             meta.add_widget(MDIcon(icon="tag", theme_text_color="Custom", text_color=pr_color))
             meta.add_widget(chip)
             card.add_widget(meta)
-
+        
         accent = MDBoxLayout(size_hint=(1, None), height=dp(2))
         accent.md_bg_color = pr_color
         card.add_widget(header)
-        card.add_widget(header_btn)
-        card.add_widget(accent)
 
         if note:
             note_label = MDLabel(text=format_text_with_fonts(f"{note}"),
                             theme_text_color="Custom", text_color="gray", markup=True,
                             halign="left", size_hint=(1, None), shorten=False, pos_hint={"center_x": 0.5})
-            
             note_label.bind(texture_size=note_label.setter("texture_size"))
             note_label.bind(texture_size=note_label.setter("size"))
             card.add_widget(note_label)
+
+        card.add_widget(accent)
+        card.add_widget(header_btn)
 
         if card.finished:
             card.opacity = 0.75
