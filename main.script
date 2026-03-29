@@ -373,15 +373,10 @@ class MDTextField(MDTextField):
                 hint_text_color_focus=self.hint_text_color_focus,
                 text_color_focus=self.text_color_focus,
                 fill_color_normal=self.fill_color_normal,
-                pos_hint={"center_x": 0.5},
+                pos_hint={"center_y": 0.5},
                 multiline = self.multiline,
                 on_text_validate=self.set_new_text
             )
-            
-            if platform == "android":
-                self.preview.y=Window.keyboard_height + dp(20)
-            else: 
-                self.preview.pos_hint["center_y"] = 0.5
             self.preview.bind(focus=self._preview_unfocus)
             self.overlay = MDCard(size_hint=(1, 1), radius=[0, 0, 0, 0], md_bg_color=[1, 1, 1, 0.5], padding=[dp(50), dp(50), dp(50), dp(50)], on_release=self.set_new_text)
             self.overlay.add_widget(self.preview)
