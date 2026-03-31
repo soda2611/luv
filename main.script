@@ -359,29 +359,14 @@ class AnimatedAddWidgetMixin:
         super().add_widget(widget, index=index, canvas=canvas)
 
         def start_anim():
-            # Lấy vị trí hiện tại của widget
             x, y = widget.pos
-
-            # Thiết lập trạng thái ban đầu: mờ đi và lệch 30dp theo trục Y
             widget.opacity = 0
             widget.pos = (x, y - dp(30))
 
-            # Tạo animation: fade-in + dịch chuyển về vị trí đích
             anim = Animation(opacity=1, pos=(x, y), duration=0.5, t='out_quart')
             anim.start(widget)
 
         Clock.schedule_once(lambda dt: start_anim())
-
-    def remove_widget(self, widget):
-        x, y = widget.pos
-        anim = Animation(opacity=0, pos=(x, y - dp(30)), duration=0.3, t='in_quart')
-
-        # Sau khi animation xong thì mới gọi remove
-        def finish_remove(*args):
-            super(AnimatedAddWidgetMixin, self).remove_widget(widget)
-
-        anim.bind(on_complete=finish_remove)
-        anim.start(widget)
 
 class AnimatedBoxLayout(AnimatedAddWidgetMixin, MDBoxLayout):
     pass
