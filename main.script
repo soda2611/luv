@@ -353,6 +353,45 @@ headers = {
 
 org_textfield = MDTextField
 
+class AnimatedAddWidgetMixin:
+    def add_widget(self, widget, index=0, canvas=None):
+        # Gọi hàm gốc để thêm widget
+        super().add_widget(widget, index=index, canvas=canvas)
+
+        def start_anim():
+            # Lấy vị trí hiện tại của widget
+            x, y = widget.pos
+
+            # Thiết lập trạng thái ban đầu: mờ đi và lệch 30dp theo trục Y
+            widget.opacity = 0
+            widget.pos = (x, y - dp(30))
+
+            # Tạo animation: fade-in + dịch chuyển về vị trí đích
+            anim = Animation(opacity=1, pos=(x, y), duration=0.5, t='out_quad')
+            anim.start(widget)
+
+        Clock.schedule_once(lambda dt: start_anim())
+
+    def remove_widget(self, widget):
+        x, y = widget.pos
+        anim = Animation(opacity=0, pos=(x, y - dp(30)), duration=0.3, t='in_quad')
+
+        # Sau khi animation xong thì mới gọi remove
+        def finish_remove(*args):
+            super(AnimatedAddWidgetMixin, self).remove_widget(widget)
+
+        anim.bind(on_complete=finish_remove)
+        anim.start(widget)
+
+class AnimatedBoxLayout(AnimatedAddWidgetMixin, MDBoxLayout):
+    pass
+
+class AnimatedFloatLayout(AnimatedAddWidgetMixin, MDFloatLayout):
+    pass
+
+class AnimatedCard(AnimatedAddWidgetMixin, MDCard):
+    pass
+
 class MDTextField(MDTextField):
     def __init__(self, **kwargs):
         super(MDTextField, self).__init__(**kwargs)
@@ -383,7 +422,7 @@ class MDTextField(MDTextField):
             else: 
                 self.preview.pos_hint["center_y"] = 0.5
             self.preview.bind(focus=self._preview_unfocus)
-            self.overlay = MDCard(size_hint=(1, 1), radius=[0, 0, 0, 0], md_bg_color=[1, 1, 1, 0.5], padding=[dp(50), dp(50), dp(50), dp(50)], on_release=self.set_new_text)
+            self.overlay = AnimatedCard(size_hint=(1, 1), radius=[0, 0, 0, 0], md_bg_color=[1, 1, 1, 0.5], padding=[dp(50), dp(50), dp(50), dp(50)], on_release=self.set_new_text)
             self.overlay.add_widget(self.preview)
             MDApp.get_running_app().root.current_screen.add_widget(self.overlay)
             Clock.schedule_once(lambda _: setattr(self, "focus", False), 0)
@@ -1812,7 +1851,7 @@ class ChatApp(MDApp):
         self.top_bar.add_widget(self.uid_button)
         
         self.msg_scroll = ScrollView(do_scroll_x=False, size_hint=(1, 1))
-        self.msg_list = MDBoxLayout(orientation="vertical", size_hint=(1, None), spacing=dp(10), padding=[0, dp(10), 0, dp(10)])
+        self.msg_list = AnimatedBoxLayout(orientation="vertical", size_hint=(1, None), spacing=dp(10), padding=[0, dp(10), 0, dp(10)])
         self.container = OverlayContainer(size_hint=(1, None), anchor_y='top')
         self.draw_canvas = DrawCanvas()
         self.draw_canvas.size_hint = (None, None)
@@ -1929,7 +1968,7 @@ class ChatApp(MDApp):
         self.todo_board.on_stroke_finished = self._on_local_todo_stroke_finished
         self.todo_board.on_stroke_deleted = self._on_local_todo_stroke_deleted
         self.todo_board.bind(selected_widget_exists=self.format_widget_toolbar)
-        self.todo_browse = MDBoxLayout(orientation="vertical", size_hint=(1, None), spacing=dp(10), padding=[0, dp(10), 0, dp(10)])
+        self.todo_browse = AnimatedBoxLayout(orientation="vertical", size_hint=(1, None), spacing=dp(10), padding=[0, dp(10), 0, dp(10)])
         self.todo_container = OverlayContainer(size_hint=(1, None), anchor_y='top')
         self.set_widget_color_button = MDCard(size_hint=(None, None), width=dp(20), height=dp(20), radius=dp(100), pos_hint={"center_y": 0.5}, line_width=dp(1.5), line_color=btn, on_release=lambda instance: self.open_color_picker(instance, "widget"))
         self.set_widget_text_color_button = MDCard(size_hint=(None, None), width=dp(20), height=dp(20), radius=dp(100), pos_hint={"center_y": 0.5}, line_width=dp(1.5), line_color=btn, on_release=lambda instance: self.open_color_picker(instance, "text"))
@@ -2130,7 +2169,7 @@ class ChatApp(MDApp):
         self.wishlist_top_bar.add_widget(self.wishlist_back_btn)
 
         self.wishlist_scroll = ScrollView(size_hint=(1, 1), scroll_type=['bars', 'content'])
-        self.wishlist_list = MDBoxLayout(orientation="vertical", size_hint=(1, None),
+        self.wishlist_list = AnimatedBoxLayout(orientation="vertical", size_hint=(1, None),
                                          spacing=dp(10), padding=[0, dp(10), 0, dp(10)])
         self.wishlist_list.bind(minimum_height=self.wishlist_list.setter('height'))
         self.wishlist_scroll.add_widget(self.wishlist_list)
@@ -3659,10 +3698,10 @@ class ChatApp(MDApp):
         status_icon = "check-circle" if card.finished else "checkbox-blank-circle-outline"
         header = MDBoxLayout(size_hint=(1, None), height=dp(28), spacing=dp(8))
         header_btn = MDBoxLayout(size_hint=(1, None), height=dp(28), spacing=dp(8))
-        left = MDBoxLayout(size_hint=(1, 1))
-        card.toggle_btn = MDIconButton(icon=status_icon, theme_icon_color="Custom", icon_color=pr_color,
+        left = MDBoxLayout(size_hint=(1, 1), spacing=dp(10))
+        card.toggle_btn = MDIcon(icon=status_icon, theme_text_color="Custom", text_color=pr_color,
                                   pos_hint={"center_y": 0.5},
-                                  on_release=lambda *_: self.toggle_wishlist_finished(item_id, not card.finished))
+                                  on_touch_down=lambda *_: self.toggle_wishlist_finished(item_id, not card.finished))
 
         title = MDLabel(text=format_text_with_fonts(content if content else "(Không có nội dung)"),
                         theme_text_color="Custom", text_color=primarycolor, markup=True,
@@ -3693,18 +3732,12 @@ class ChatApp(MDApp):
             header_btn.add_widget(link_btn)
 
         header_btn.add_widget(del_btn)
-        meta = MDBoxLayout(size_hint=(1, None), height=dp(26), spacing=dp(15))
 
         if category:
-            chip=MDLabel(text=format_text_with_fonts(f"{category}"), markup=True,
-                                    theme_text_color="Custom", text_color=primarycolor[:-1]+tuple([0.75]),
-                                    size_hint=(1, 1), shorten=True)
-            chip.bind(texture_size=chip.setter("texture_size"))
-            chip.bind(texture_size=chip.setter("size"))
-
-            meta.add_widget(MDIcon(icon="tag", theme_text_color="Custom", text_color=pr_color))
-            meta.add_widget(chip)
-            card.add_widget(meta)
+            chip=MDFillRoundFlatIconButton(icon="tag", text=format_text_with_fonts(f"{category}"), size_hint=(None, 1),
+                                pos_hint={"center_y": 0.5}, md_bg_color=boxbg[:-1]+(0,), theme_icon_color="Custom", icon_color=pr_color, valign="center", theme_text_color="Custom", text_color=primarycolor, font_size=dp(14))
+            
+            header.add_widget(chip)
         
         accent = MDBoxLayout(size_hint=(1, None), height=dp(2))
         accent.md_bg_color = pr_color
