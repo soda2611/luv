@@ -394,7 +394,7 @@ class AnimatedCard(AnimatedAddWidgetMixin, MDCard):
 
 class org_textfield(MDTextField):
     def __init__(self, **kwargs):
-        super(MDTextField, self).__init__(**kwargs)
+        super().__init__(**kwargs)
 
     def _show_cut_copy_paste(self, pos, win, parent_changed=False, mode='', *args, **kwargs):
         # ❌ tắt menu mặc định
