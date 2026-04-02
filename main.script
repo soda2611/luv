@@ -425,7 +425,6 @@ class org_textfield(MDTextField):
                 theme_text_color="Custom",
                 text_color=(1, 1, 1, 1),
                 md_bg_color=(0, 0, 0, 0),
-                size_hint=(None, None),
                 on_release=lambda x: (func(), self._hide_menu()),
                 pos_hint={"center_y": 0.5}
             )
@@ -435,7 +434,7 @@ class org_textfield(MDTextField):
         add_btn("Cut", self.cut)
         add_btn("Copy", self.copy)
         add_btn("Paste", self.paste)
-        add_btn("Select All", self.select_all)
+        add_btn("All", self.select_all)
 
         # 👉 set size theo content
         self._menu.width = len(self._menu.children) * dp(70)
