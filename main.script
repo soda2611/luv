@@ -396,7 +396,8 @@ class MDTextField(MDTextField):
     def __init__(self, **kwargs):
         super(MDTextField, self).__init__(**kwargs)
 
-        self.bind(focus=self._on_focus)
+        if platform == "android":
+            self.bind(focus=self._on_focus)
 
     def _on_focus(self, instance, value):
         if value:
