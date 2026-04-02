@@ -494,11 +494,6 @@ class MDTextField(MDTextField):
                 multiline = self.multiline,
                 on_text_validate=self.set_new_text
             )
-            
-            if platform == "android":
-                self.preview.y=Window.keyboard_height + dp(20)
-            else: 
-                self.preview.pos_hint["center_y"] = 0.5
             self.preview.bind(focus=self._preview_unfocus)
             self.overlay = AnimatedCard(size_hint=(1, 1), radius=[0, 0, 0, 0], md_bg_color=[1, 1, 1, 0.5], padding=[dp(50), dp(50), dp(50), dp(50)], on_release=self.set_new_text)
             self.overlay.add_widget(self.preview)
@@ -507,7 +502,7 @@ class MDTextField(MDTextField):
             Clock.schedule_once(lambda d: setattr(self.preview, "focus", True), 0)
 
     def _preview_unfocus(self, instance, value):
-        if not value:
+        if not value and not self.preview.selection_text:
             self.set_new_text()
 
     def _show_cut_copy_paste(self, *args, **kwargs):
