@@ -395,9 +395,14 @@ class org_textfield(MDTextField):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
+        self.bind(focus=self._on_focus)
+
+    def _on_focus(self, instance, value):
+        if not value: self._hide_cut_copy_paste()
+        return super()._on_focus(instance, value)
+
     def _show_cut_copy_paste(self, pos, win, parent_changed=False, mode='', *args, **kwargs):
-        # ❌ tắt menu mặc định
-        self._hide_cut_copy_paste()
+        self._hide_cut_copy_paste()    
 
         # 👉 tránh tạo nhiều menu
         if hasattr(self, "_menu") and self._menu:
@@ -408,7 +413,7 @@ class org_textfield(MDTextField):
             orientation="horizontal",
             size_hint=(None, None),
             height=dp(40),
-            radius=[12],
+            radius=[dp(10), dp(10), dp(10), dp(10)],
             padding=[dp(8), 0],
             spacing=dp(4),
             md_bg_color=menubg,
@@ -435,6 +440,7 @@ class org_textfield(MDTextField):
 
         # 👉 vị trí hiển thị
         x, y = pos
+        y += dp(20)
 
         # tránh tràn màn hình
         if x + self._menu.width > Window.width:
