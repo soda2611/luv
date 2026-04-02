@@ -392,6 +392,74 @@ class AnimatedFloatLayout(AnimatedAddWidgetMixin, MDFloatLayout):
 class AnimatedCard(AnimatedAddWidgetMixin, MDCard):
     pass
 
+class org_textfield(MDTextField):
+    def __init__(self, **kwargs):
+        super(MDTextField, self).__init__(**kwargs)
+
+    def _show_cut_copy_paste(self, pos, win, parent_changed=False, mode='', *args, **kwargs):
+        # ❌ tắt menu mặc định
+        self._hide_cut_copy_paste()
+
+        # 👉 tránh tạo nhiều menu
+        if hasattr(self, "_menu") and self._menu:
+            self._menu.parent.remove_widget(self._menu)
+
+        # 👉 tạo menu
+        self._menu = MDCard(
+            orientation="horizontal",
+            size_hint=(None, None),
+            height=dp(40),
+            radius=[12],
+            padding=[dp(8), 0],
+            spacing=dp(4),
+            md_bg_color=(0.1, 0.1, 0.1, 0.95)
+        )
+
+        def add_btn(text, func):
+            btn = MDFillRoundFlatButton(
+                text=text,
+                theme_text_color="Custom",
+                text_color=(1, 1, 1, 1),
+                on_release=lambda x: (func(), self._hide_menu())
+            )
+            self._menu.add_widget(btn)
+
+        # 👉 actions
+        add_btn("CUT", self.cut)
+        add_btn("COPY", self.copy)
+        add_btn("PASTE", self.paste)
+        add_btn("ALL", self.select_all)
+
+        # 👉 set size theo content
+        self._menu.width = len(self._menu.children) * dp(70)
+
+        # 👉 vị trí hiển thị
+        x, y = pos
+
+        # tránh tràn màn hình
+        if x + self._menu.width > Window.width:
+            x = Window.width - self._menu.width - dp(10)
+
+        if y + self._menu.height > Window.height:
+            y -= self._menu.height + dp(10)
+
+        self._menu.pos = (x, y)
+
+        Window.add_widget(self._menu)
+
+    def _hide_menu(self):
+        if hasattr(self, "_menu") and self._menu:
+            if self._menu.parent:
+                self._menu.parent.remove_widget(self._menu)
+            self._menu = None
+
+    def on_touch_down(self, touch):
+        # 👉 click ngoài → tắt menu
+        if hasattr(self, "_menu") and self._menu:
+            if not self._menu.collide_point(*touch.pos):
+                self._hide_menu()
+        return super().on_touch_down(touch)
+
 class MDTextField(MDTextField):
     def __init__(self, **kwargs):
         super(MDTextField, self).__init__(**kwargs)
@@ -434,6 +502,9 @@ class MDTextField(MDTextField):
     def _preview_unfocus(self, instance, value):
         if not value:
             self.set_new_text()
+
+    def _show_cut_copy_paste(self, *args, **kwargs):
+        return
 
     def set_new_text(self, *args):
         self.text = self.preview.text
