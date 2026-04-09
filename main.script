@@ -88,8 +88,7 @@ from kivy.graphics import Line, PushMatrix, PopMatrix, Translate, Color, Instruc
 from plyer import notification
 from uuid import uuid4, UUID
 
-# Dùng 1 Session dùng chung để tái sử dụng kết nối TCP/TLS
-_api_timeout = (5, 20)  # (connect, read)
+_api_timeout = (5, 20)  
 _api = requests.Session()
 _api.headers.update({
     "apikey": SUPABASE_KEY,
@@ -183,23 +182,23 @@ def format_text_with_fonts(text, bold=False):
     for ch in text:
         ch_is_emoji = is_emoji(ch)
 
-        # lần đầu
+        
         if buffer_is_emoji is None:
             buffer.append(ch)
             buffer_is_emoji = ch_is_emoji
             continue
 
-        # cùng loại → gom
+        
         if ch_is_emoji == buffer_is_emoji:
             buffer.append(ch)
         else:
-            # khác loại → flush buffer
+            
             font = emoji_font if buffer_is_emoji else normal_font
             parts.append(f"[font={font}]{''.join(buffer)}[/font]")
             buffer = [ch]
             buffer_is_emoji = ch_is_emoji
 
-    # flush phần còn lại
+    
     font = emoji_font if buffer_is_emoji else normal_font
     parts.append(f"[font={font}]{''.join(buffer)}[/font]")
 
@@ -240,9 +239,9 @@ def android_notify(title, message):
         else:
             builder = NotificationBuilder(context)
 
-        # cache tin nhắn
+        
         message_cache.append(message)
-        message_cache = message_cache[-5:]  # giữ tối đa 5 dòng
+        message_cache = message_cache[-5:]  
 
         style = InboxStyle()
         for msg in message_cache:
@@ -266,11 +265,11 @@ def android_notify(title, message):
         builder.setAutoCancel(True)
         builder.setContentIntent(pending_intent)
 
-        nm.notify(1001, builder.build())  # ID CỐ ĐỊNH
+        nm.notify(1001, builder.build())  
 
     _notify(0)
 
-# --- Notification wrapper ---
+
 def notify_message(title, message):
     if platform == "android":
         android_notify(title, message)
@@ -303,11 +302,11 @@ def norm_uuid_hyphen(s: str) -> str:
         raise ValueError("Empty stroke_id")
     s = s.strip()
 
-    # Tạo đối tượng UUID sẽ tự hiểu cả dạng 32 và 36 (có/không gạch)
+    
     try:
-        u = UUID(s)  # sẽ raise nếu s không hợp lệ
+        u = UUID(s)  
     except ValueError:
-        # Thử trường hợp bạn lỡ truyền mixed-case/extra-chars
+        
         if UUID32_RE.match(s.replace('-', '')):
             u = UUID(s.replace('-', ''))
         else:
@@ -354,7 +353,7 @@ org_textfield = MDTextField
 
 class AnimatedAddWidgetMixin:
     def add_widget(self, widget, index=0, canvas=None):
-        # Gọi hàm gốc để thêm widget
+        
         super().add_widget(widget, index=index, canvas=canvas)
 
         def start_anim():
@@ -404,11 +403,11 @@ class org_textfield(MDTextField):
     def _show_cut_copy_paste(self, pos, win, parent_changed=False, mode='', *args, **kwargs):
         self._hide_cut_copy_paste()    
 
-        # 👉 tránh tạo nhiều menu
+        
         if hasattr(self, "_menu") and self._menu:
             self._menu.parent.remove_widget(self._menu)
 
-        # 👉 tạo menu
+        
         self._menu = MDCard(
             orientation="horizontal",
             size_hint=(None, None),
@@ -430,20 +429,20 @@ class org_textfield(MDTextField):
             )
             self._menu.add_widget(btn)
 
-        # 👉 actions
+        
         add_btn("Cut", self.cut)
         add_btn("Copy", self.copy)
         add_btn("Paste", self.paste)
         add_btn("All", self.select_all)
 
-        # 👉 set size theo content
+        
         self._menu.width = len(self._menu.children) * dp(70)
 
-        # 👉 vị trí hiển thị
+        
         x, y = pos
         y += dp(20)
 
-        # tránh tràn màn hình
+        
         if x + self._menu.width > Window.width:
             x = Window.width - self._menu.width - dp(10)
 
@@ -461,7 +460,7 @@ class org_textfield(MDTextField):
             self._menu = None
 
     def on_touch_down(self, touch):
-        # 👉 click ngoài → tắt menu
+        
         if hasattr(self, "_menu") and self._menu:
             if not self._menu.collide_point(*touch.pos):
                 self._hide_menu()
@@ -512,7 +511,7 @@ class MDTextField(MDTextField):
         self.text = self.preview.text
         MDApp.get_running_app().root.current_screen.remove_widget(self.overlay)
 
-# --- LimitedTextField ---
+
 class LimitedTextField(MDTextField):
     def __init__(self, max_length=100, **kwargs):
         super().__init__(**kwargs)
@@ -537,7 +536,7 @@ class CustomMDBoxLayout(MDBoxLayout):
 class DraggableResizableWidget(MDCard):
     """Widget có thể kéo và thay đổi kích thước"""
     widget_id = StringProperty('')
-    selected = BooleanProperty(False)  # ✅ trạng thái được chọn
+    selected = BooleanProperty(False)  
     text_color = ListProperty([0, 0, 0, 1])
     text_size = NumericProperty(14)
     text_align = StringProperty("center")
@@ -557,18 +556,18 @@ class DraggableResizableWidget(MDCard):
         self.line_color = [0, 0, 0, 0]
         self.line_width = dp(1)
         
-        # Resize handle
+        
         self.resize_active = False
         self.resize_start_pos = (0, 0)
         self.resize_start_size = (0, 0)
         self.resize_start_pos_widget = (0, 0)
-        self.active_handle = None  # 'tl', 'tr', 'bl', 'br', 't', 'b', 'l', 'r', 'header'
+        self.active_handle = None  
         
-        # Double-click tracking
+        
         self.last_touch_time = 0
         self.is_editing = False
         
-        # Content area
+        
         self.content_box = MDBoxLayout(size_hint=(1, 1), orientation="vertical", padding=dp(5), spacing=dp(5))
         self.content_label = MDLabel(
             text=f"[size={int(dp(self.text_size))}]{format_text_with_fonts(self.text)}[/size]",
@@ -581,14 +580,14 @@ class DraggableResizableWidget(MDCard):
         self.content_box.add_widget(self.content_label)
         self.add_widget(self.content_box)
         
-        # --- FIX STENCIL: dùng InstructionGroup riêng cho handles ---
+        
         self._handles_group = InstructionGroup()
         self.canvas.after.add(self._handles_group)
 
-        # Vẽ resize handles ở các góc khi pos/size đổi
+        
         self.bind(angle=self._update_handles, size=self._update_handles, pos=self._update_handles)
         self.bind(angle=self._update_angle, size=self._update_angle, pos=self._update_angle)
-        # Khi selected đổi → cập nhật visual/handles
+        
         self.bind(selected=self._on_selected_change)
         self.bind(text=self._update_content_text)
         self.bind(text_size=self._update_content_text)
@@ -628,31 +627,31 @@ class DraggableResizableWidget(MDCard):
         wx, wy = self.pos
         ww, wh = self.size
         
-        # Tolerance area
+        
         tol = dp(15)
         
-        # Top-left
+        
         if wx - tol <= x <= wx + handle_size + tol and wy + wh - handle_size - tol <= y <= wy + wh + tol:
             return 'tl'
-        # Top-right
+        
         if wx + ww - handle_size - tol <= x <= wx + ww + tol and wy + wh - handle_size - tol <= y <= wy + wh + tol:
             return 'delete'
-        # Bottom-left
+        
         if wx - tol <= x <= wx + handle_size + tol and wy - tol <= y <= wy + handle_size + tol:
             return 'bl'
-        # Bottom-right
+        
         if wx + ww - handle_size - tol <= x <= wx + ww + tol and wy - tol <= y <= wy + handle_size + tol:
             return 'br'
-        # Top edge
+        
         if wx + handle_size <= x <= wx + ww - handle_size and wy + wh - handle_size <= y <= wy + wh + tol:
             return 't'
-        # Bottom edge
+        
         if wx + handle_size <= x <= wx + ww - handle_size and wy - tol <= y <= wy + handle_size:
             return 'b'
-        # Left edge
+        
         if wx - tol <= x <= wx + handle_size and wy + handle_size <= y <= wy + wh - handle_size:
             return 'l'
-        # Right edge
+        
         if wx + ww - handle_size <= x <= wx + ww + tol and wy + handle_size <= y <= wy + wh - handle_size:
             return 'r'
         
@@ -670,7 +669,7 @@ class DraggableResizableWidget(MDCard):
         pill_short = dp(18)
 
         def draw_pill(x, y, w, h, draw_x=False):
-            # nền trắng
+            
             self._handles_group.add(Color(1, 1, 1, 1))
             self._handles_group.add(RoundedRectangle(
                 pos=(x, y),
@@ -678,7 +677,7 @@ class DraggableResizableWidget(MDCard):
                 radius=[h/2]
             ))
 
-            # viền xám
+            
             self._handles_group.add(Color(0.75, 0.75, 0.75, 1))
             self._handles_group.add(Line(
                 rounded_rectangle=(x, y, w, h, h/2),
@@ -686,7 +685,7 @@ class DraggableResizableWidget(MDCard):
             ))
 
             if draw_x:
-                # vẽ dấu X ở giữa
+                
                 cx = x + w/2
                 cy = y + h/2
                 size = min(w, h) * .25
@@ -703,7 +702,7 @@ class DraggableResizableWidget(MDCard):
                     width=dp(1.5)
                 ))
 
-        # ---- TOP ----
+        
         draw_pill(
             wx + ww/2 - pill_long/2,
             wy + wh - dp(8)/2,
@@ -711,7 +710,7 @@ class DraggableResizableWidget(MDCard):
             dp(8)
         )
 
-        # ---- BOTTOM ----
+        
         draw_pill(
             wx + ww/2 - pill_long/2,
             wy - dp(8)/2,
@@ -719,7 +718,7 @@ class DraggableResizableWidget(MDCard):
             dp(8)
         )
 
-        # ---- LEFT ----
+        
         draw_pill(
             wx - dp(8)/2,
             wy + wh/2 - pill_long/2,
@@ -727,7 +726,7 @@ class DraggableResizableWidget(MDCard):
             pill_long
         )
 
-        # ---- RIGHT ----
+        
         draw_pill(
             wx + ww - dp(8)/2,
             wy + wh/2 - pill_long/2,
@@ -735,7 +734,7 @@ class DraggableResizableWidget(MDCard):
             pill_long
         )
 
-        # ---- TOP LEFT ----
+        
         draw_pill(
             wx - pill_short/2,
             wy + wh - pill_short/2,
@@ -743,7 +742,7 @@ class DraggableResizableWidget(MDCard):
             pill_short
         )
 
-        # ---- TOP RIGHT (DELETE) ----
+        
         draw_pill(
             wx + ww - pill_short/2,
             wy + wh - pill_short/2,
@@ -752,7 +751,7 @@ class DraggableResizableWidget(MDCard):
             draw_x=True
         )
 
-        # ---- BOTTOM LEFT ----
+        
         draw_pill(
             wx - pill_short/2,
             wy - pill_short/2,
@@ -760,7 +759,7 @@ class DraggableResizableWidget(MDCard):
             pill_short
         )
 
-        # ---- BOTTOM RIGHT ----
+        
         draw_pill(
             wx + ww - pill_short/2,
             wy - pill_short/2,
@@ -805,7 +804,7 @@ class DraggableResizableWidget(MDCard):
         def save_content(instance):
             new_text = edit_input.text.strip()
             if new_text:
-                self.text = new_text  # cập nhật property để lưu
+                self.text = new_text
             dialog.dismiss()
         
         def cancel_edit(instance):
@@ -848,12 +847,12 @@ class DraggableResizableWidget(MDCard):
         if not self._is_widget_mode():
             return False
 
-        # Click trong widget => chọn widget
+        
         if self.collide_point(*touch.pos):
             if hasattr(self.parent, "set_selected_widget"):
                 self.parent.set_selected_widget(self)
 
-        # Kiểm tra content area double-click
+        
         if (self.content_box.collide_point(*touch.pos) and 
             not self._get_handle_at(touch.pos)):
             
@@ -861,7 +860,7 @@ class DraggableResizableWidget(MDCard):
                 self._show_edit_dialog()
                 return True
         
-        # Kiểm tra resize handle
+        
         handle = self._get_handle_at(touch.pos)
 
         if handle == 'delete':
@@ -875,14 +874,14 @@ class DraggableResizableWidget(MDCard):
         if handle:
             self.resize_active = True
             self.active_handle = handle
-            # **Lưu trạng thái ban đầu**
+            
             self.resize_start_pos = (touch.x, touch.y)
             self.resize_start_size = self.size
             self.resize_start_pos_widget = self.pos
             touch.grab(self)
             return True
         
-        # Kiểm tra header (drag)
+        
         if self.children[0].collide_point(*touch.pos):
             touch.grab(self)
             self.active_handle = 'header'
@@ -894,12 +893,12 @@ class DraggableResizableWidget(MDCard):
         if not self._is_widget_mode():
             return False
         
-        # Drag widget
+        
         if touch.grab_current is self and self.active_handle == 'header':
             self.pos = (self.pos[0] + touch.dx, self.pos[1] + touch.dy)
             return True
         
-        # Resize widget
+        
         if touch.grab_current is self and self.resize_active and self.active_handle:
             wx, wy = self.resize_start_pos_widget
             ww, wh = self.resize_start_size
@@ -1008,18 +1007,18 @@ class SVArea(Widget):
 
         import numpy as np
 
-        # Pure hue color (full saturation+value)
+        
         Rh, Gh, Bh = colorsys.hsv_to_rgb(self.hue, 1, 1)
 
-        # S axis
+        
         S = np.linspace(0, 1, w, dtype=np.float32)
 
-        # V axis
+        
         V = np.linspace(0, 1, h, dtype=np.float32)
 
         S, V = np.meshgrid(S, V)
 
-        # WHITE blend
+        
         R = V * ((1 - S) + S * Rh)
         G = V * ((1 - S) + S * Gh)
         B = V * ((1 - S) + S * Bh)
@@ -1059,7 +1058,7 @@ class HueSlider(Widget):
         with self.canvas:
             self.rect = Rectangle(pos=self.pos, size=self.size)
 
-            # Pointer
+            
             Color(1, 1, 1, 1)
             self.pointer = Line(circle=(0, 0, dp(6)), width=(dp(1.2)))
 
@@ -1172,25 +1171,25 @@ class ProColorPicker(MDCard):
         self.add_widget(right)
         self.add_widget(btn_row)
 
-        # Responsive cho mobile/desktop
+        
         Window.bind(size=self._apply_responsive)
         Clock.schedule_once(self._apply_responsive, 0)
         Clock.schedule_once(lambda dt: self.update_color())
 
     def _apply_responsive(self, *args):
         w, h = Window.size
-        if w < h:  # Mobile dọc
+        if w < h:  
             self.width  = w * 0.92
             self.height = max(dp(380), h * 0.55)
             self.sv_area.width = self.width * 0.60
             self.hue_slider.width = dp(28)
-        else:      # Desktop / ngang
+        else:      
             self.width  = min(dp(700), w * 0.75)
             self.height = min(dp(440), h * 0.7)
             self.sv_area.width = self.width * 0.58
             self.hue_slider.width = dp(32)
 
-    # ===== API giữ nguyên =====
+    
     def update_hue(self, h):
         self.hue = h
         self.sv_area.hue = h
@@ -1248,14 +1247,14 @@ class ProColorPickerPopup(ModalView):
     def _update_size(self, *args):
         w, h = Window.size
 
-        if w < h:  # mobile dọc
+        if w < h:  
             self.picker.width = w * 0.9
             self.picker.height = h * 0.55
-        else:  # desktop / mobile ngang
+        else:  
             self.picker.width = min(dp(650), w * 0.75)
             self.picker.height = min(dp(420), h * 0.65)
 
-# ---------- Utils ----------
+
 
 def stroke_in_viewport(stroke, vp):
     min_x = min(p[0] for p in stroke["points"])
@@ -1266,12 +1265,12 @@ def stroke_in_viewport(stroke, vp):
     vx1, vy1, vx2, vy2 = vp
     return not (max_x < vx1 or min_x > vx2 or max_y < vy1 or min_y > vy2)
 
-# ---------- Draw Board ----------
+
 class DrawCanvas(MDAnchorLayout):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-        # stroke_id -> stroke
+        
         self.strokes = {}
 
         self.current_stroke = None
@@ -1298,9 +1297,9 @@ class DrawCanvas(MDAnchorLayout):
         with self.canvas.after:
             PopMatrix()
 
-    # --------------------------------------------------
-    # PEN
-    # --------------------------------------------------
+    
+    
+    
 
     def on_touch_down(self, touch):
         if not draw_mode: return False
@@ -1367,7 +1366,7 @@ class DrawCanvas(MDAnchorLayout):
             "group": group,
             "line": line,
             "points": [(x, y)],
-            "bbox": [x, y, x, y],  # minx, miny, maxx, maxy
+            "bbox": [x, y, x, y],  
         }
 
         self.strokes[stroke_id] = stroke
@@ -1385,28 +1384,28 @@ class DrawCanvas(MDAnchorLayout):
         bx[2] = max(bx[2], x)
         bx[3] = max(bx[3], y)
 
-    # --------------------------------------------------
-    # ERASER
-    # --------------------------------------------------
+    
+    
+    
 
     def _erase_at(self, cx, cy):
         r = self.eraser_radius
 
-        # copy keys để remove an toàn
+        
         for stroke_id in list(self.strokes.keys()):
             st = self.strokes[stroke_id]
             bx = st["bbox"]
 
-            # 1) Lọc sớm bằng bbox
+            
             if not self._circle_hits_bbox(cx, cy, r, bx):
                 continue
 
-            # 2) Kiểm tra chính xác với polyline
+            
             pen_w = getattr(st["line"], "width", 1.0)
             if not self._circle_hits_polyline(cx, cy, r, st["points"], pen_w):
                 continue
 
-            # 3) Thật sự trúng → xoá stroke
+            
             self._remove_stroke(stroke_id)
 
     def _remove_stroke(self, stroke_id):
@@ -1437,18 +1436,18 @@ class DrawCanvas(MDAnchorLayout):
         wx, wy = px - x1, py - y1
         len2 = vx * vx + vy * vy
         if len2 == 0:
-            # A trùng B: khoảng cách điểm-điểm
+            
             dx, dy = px - x1, py - y1
             return dx * dx + dy * dy
         t = (wx * vx + wy * vy) / len2
         if t < 0:
-            # gần A
+            
             dx, dy = px - x1, py - y1
         elif t > 1:
-            # gần B
+            
             dx, dy = px - x2, py - y2
         else:
-            # chiếu vuông góc xuống AB
+            
             projx = x1 + t * vx
             projy = y1 + t * vy
             dx, dy = px - projx, py - projy
@@ -1462,11 +1461,11 @@ class DrawCanvas(MDAnchorLayout):
         """
         if not points:
             return False
-        # bán kính hiệu dụng
+        
         eff_r = r + max(1.0, float(pen_w)) / 2.0
         r2 = eff_r * eff_r
 
-        # kiểm từng đoạn
+        
         for i in range(1, len(points)):
             x1, y1 = points[i - 1]
             x2, y2 = points[i]
@@ -1474,7 +1473,7 @@ class DrawCanvas(MDAnchorLayout):
             if d2 <= r2:
                 return True
 
-        # kiểm luôn hai đầu mút (phòng vài stroke rất ngắn)
+        
         dx, dy = cx - points[0][0], cy - points[0][1]
         if dx * dx + dy * dy <= r2:
             return True
@@ -1484,9 +1483,9 @@ class DrawCanvas(MDAnchorLayout):
 
         return False
 
-    # --------------------------------------------------
-    # REALTIME API
-    # --------------------------------------------------
+    
+    
+    
 
     def draw_remote_stroke(self, payload):
         sid = norm_uuid_hyphen(payload["stroke_id"]) 
@@ -1547,7 +1546,7 @@ class DrawCanvas(MDAnchorLayout):
         self._remove_stroke(sid)
 
     def clear_all(self):
-        # remove từng stroke khỏi canvas (KHÔNG canvas.clear)
+        
         for st in list(self.strokes.values()):
             self.canvas.remove(st["group"])
         self.strokes.clear()
@@ -1558,11 +1557,11 @@ class Whiteboard(MDFloatLayout):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-        # stroke_id -> stroke
+        
         self.strokes = {}
 
         self.current_stroke = None
-        self.tool = "cursor"   # "pen" | "eraser"
+        self.tool = "cursor"   
 
         self.pen_color = (0, 0, 0, 1)
         self.pen_width = 2.5
@@ -1574,7 +1573,7 @@ class Whiteboard(MDFloatLayout):
 
         self.selecting_widget = None
 
-    # --- Selection helpers ---
+    
     def is_widget_mode(self):
         return (self.tool == "cursor") and globals().get("todo_draw_mode", False)
 
@@ -1600,12 +1599,12 @@ class Whiteboard(MDFloatLayout):
             self.selecting_widget.selected = False
             self.selecting_widget = None
             MDApp.get_running_app().toolbar_return()
-    # --------------------------------------------------
-    # PEN / SELECTION
-    # --------------------------------------------------
+    
+    
+    
 
     def on_touch_down(self, touch):
-        # Cho child xử lý trước (nếu click trúng một widget)
+        
         if super().on_touch_down(touch):
             return True
 
@@ -1617,7 +1616,7 @@ class Whiteboard(MDFloatLayout):
                     break
             if not hit_any:
                 self.deselect_all()
-                return True  # chặn nổi bọt, hợp lý khi đang khóa scroll
+                return True  
 
         if not todo_draw_mode or self.tool == "cursor":
             return False
@@ -1682,7 +1681,7 @@ class Whiteboard(MDFloatLayout):
             "group": group,
             "line": line,
             "points": [(x, y)],
-            "bbox": [x, y, x, y],  # minx, miny, maxx, maxy
+            "bbox": [x, y, x, y],  
         }
 
         self.strokes[stroke_id] = stroke
@@ -1700,9 +1699,9 @@ class Whiteboard(MDFloatLayout):
         bx[2] = max(bx[2], x)
         bx[3] = max(bx[3], y)
 
-    # --------------------------------------------------
-    # ERASER
-    # --------------------------------------------------
+    
+    
+    
 
     def _erase_at(self, cx, cy):
         r = self.eraser_radius
@@ -1780,9 +1779,9 @@ class Whiteboard(MDFloatLayout):
             return True
         return False
 
-    # --------------------------------------------------
-    # REALTIME API
-    # --------------------------------------------------
+    
+    
+    
 
     def draw_remote_stroke(self, payload):
         sid = norm_uuid_hyphen(payload["stroke_id"]) 
@@ -1842,14 +1841,14 @@ class Whiteboard(MDFloatLayout):
         self._remove_stroke(sid)
 
     def clear_all(self):
-        # remove từng stroke khỏi canvas (KHÔNG canvas.clear)
+        
         for st in list(self.strokes.values()):
             self.canvas.remove(st["group"])
         self.strokes.clear()
         self.current_stroke = None
 
     def on_widget_deleted(self, widget_id: str):
-        # chuyển về ChatApp để xóa DB
+        
         MDApp.get_running_app()._on_local_widget_deleted(widget_id)
 
 class OverlayContainer(MDAnchorLayout):
@@ -1858,7 +1857,7 @@ class OverlayContainer(MDAnchorLayout):
 class ToolButton(MDIconButton):
     tool = StringProperty('')
 
-# --- ChatApp ---
+
 class ChatApp(MDApp):
     def build(self):
         def _update_ref(*args):
@@ -1883,11 +1882,11 @@ class ChatApp(MDApp):
         self._todo_draw_lock = threading.Lock()
         self.deleted_strokes = set()
         self.current_open_board=None
-        # --- Widgets realtime state ---
-        self.todo_widget_by_id = {}         # id (uuid str) -> DraggableResizableWidget
-        self._widget_update_timers = {}     # id -> ClockEvent (debounce timers)
+        
+        self.todo_widget_by_id = {}         
+        self._widget_update_timers = {}     
         self._suppress_widget_events = set()
-        self.current_widget_format=None  # tạm tắt gửi PATCH khi đang "áp" sự kiện remote
+        self.current_widget_format=None  
 
         if os.path.exists("uid.txt"):
             with open("uid.txt", "r") as f:
@@ -1901,7 +1900,7 @@ class ChatApp(MDApp):
         todo_layout = MDBoxLayout(orientation="vertical", padding=[dp(20), dp(10), dp(20), dp(35)], spacing=dp(10), md_bg_color=bg)
         
         #-------------------------------------------------------------
-        #                            Chat                            |
+        
         #-------------------------------------------------------------
 
         self.top_bar = MDBoxLayout(size_hint=(1, None), height=dp(50), padding=dp(5), spacing=dp(10))
@@ -1993,13 +1992,13 @@ class ChatApp(MDApp):
         self.noti.add_widget(self.noti.button)
 
         layout.add_widget(self.top_bar)
-        layout.add_widget(MDBoxLayout(size_hint=(1, None), md_bg_color=btn, height=dp(2), pos_hint={"center_x": 0.5}))  # Spacer
+        layout.add_widget(MDBoxLayout(size_hint=(1, None), md_bg_color=btn, height=dp(2), pos_hint={"center_x": 0.5}))  
         layout.add_widget(self.noti)    
         layout.add_widget(self.msg_scroll)
         layout.add_widget(self.input_card)
 
         #-------------------------------------------------------------
-        #                           To-Do                            |
+        
         #-------------------------------------------------------------
 
         self.todo_top_bar = MDBoxLayout(size_hint=(1, None), height=dp(50), padding=dp(5), spacing=dp(10))
@@ -2174,7 +2173,7 @@ class ChatApp(MDApp):
             size_hint=(None, None),
             pos_hint={"center_y": 0.5},
             ripple_color=boxbg,
-            on_release=lambda instance: self.add_new_todo_widget(),  # ✅ chọn luôn sau khi tạo
+            on_release=lambda instance: self.add_new_todo_widget(),  
             disabled=not todo_draw_mode,
             md_bg_color_disabled=btn
         )
@@ -2201,7 +2200,7 @@ class ChatApp(MDApp):
         self.todo_toolbar_button_overlay.add_widget(self.todo_more_button)
 
         todo_layout.add_widget(self.todo_top_bar)
-        todo_layout.add_widget(MDBoxLayout(size_hint=(1, None), md_bg_color=btn, height=dp(2), pos_hint={"center_x": 0.5}))  # Spacer
+        todo_layout.add_widget(MDBoxLayout(size_hint=(1, None), md_bg_color=btn, height=dp(2), pos_hint={"center_x": 0.5}))  
         todo_layout.add_widget(self.todo_scroll)
         todo_layout.add_widget(self.todo_new_whiteboard_button)
 
@@ -2224,7 +2223,7 @@ class ChatApp(MDApp):
         if datetime.strftime(datetime.now(), "%d/%m/%Y") == "06/03/2026":
             Clock.schedule_once(lambda dt: setattr(self.sm, "current", "to-do"), 0)
             Clock.schedule_once(lambda dt: self.load_todo_strokes("sít rịt for ngha"), 3)
-        # ==== WISHLIST: screen + open button (inline form on screen) ====
+        
         self.wishlist_screen = MDScreen(name="wishlist")
         wishlist_layout = MDBoxLayout(orientation="vertical",
                                       padding=[dp(20), dp(10), dp(20), dp(35)],
@@ -2447,7 +2446,7 @@ class ChatApp(MDApp):
     def add_new_todo_widget(self, *args):
         if not todo_draw_mode:
             return
-        # tạo id cố định để sync realtime (đừng để server tự sinh)
+        
         wid = norm_uuid_hyphen(str(uuid4().hex))
         w = DraggableResizableWidget(
             wid,
@@ -2461,17 +2460,17 @@ class ChatApp(MDApp):
 
         Clock.schedule_once(_place, 0)
 
-        # Đảm bảo board đang mở có name
+        
         if not self.current_open_board:
-            # bạn có thể show toast ở đây, mình chỉ print
+            
             print("No whiteboard is open; cannot insert widget.")
             return
 
-        # Đưa vào map + bind + insert
+        
         self.todo_widget_by_id[wid] = w
-        self.todo_board.set_selected_widget(w)  # (giữ UX như cũ)
+        self.todo_board.set_selected_widget(w)  
         self._attach_widget_bindings(w)
-        # Gửi INSERT lên DB
+        
         threading.Thread(target=lambda: self._insert_widget_to_db(w), daemon=True).start()
     
     def enable_todo(self, instance):
@@ -2555,7 +2554,7 @@ class ChatApp(MDApp):
             "id": norm_uuid_hyphen(stroke["id"]),
             "sender": self.user_id,
             "points": points,
-            "width": self.draw_canvas.pen_width,  # scale theo canvas
+            "width": self.draw_canvas.pen_width,  
             "color": list(self.draw_canvas.pen_color),
             "created_at": time.strftime("%H:%M"),
             "date": normalize_date(self.lookup_date)
@@ -2589,7 +2588,7 @@ class ChatApp(MDApp):
             "id": norm_uuid_hyphen(stroke["id"]),
             "sender": self.user_id,
             "points": points,
-            "width": self.todo_board.pen_width,  # scale theo canvas
+            "width": self.todo_board.pen_width,  
             "color": list(self.todo_board.pen_color),
             "created_at": time.strftime("%H:%M"),
             "date": normalize_date(self.lookup_date),
@@ -2605,7 +2604,7 @@ class ChatApp(MDApp):
         threading.Thread(target=send, daemon=True).start()
 
     def _on_local_widget_deleted(self, widget_id: str):
-        # Gửi DELETE
+        
         threading.Thread(target=lambda: self._delete_widget_in_db(widget_id), daemon=True).start()
 
     def load_widgets(self, name):
@@ -2667,12 +2666,12 @@ class ChatApp(MDApp):
         for stroke in self.draw_canvas.strokes.values():
             self.update_stroke_to_db(stroke)
 
-    # ==============================
-    # Widgets: serialize/deserialize
-    # ==============================
+    
+    
+    
     def _serialize_widget(self, w: DraggableResizableWidget):
         cw, ch = self.todo_board.width, self.todo_board.height
-        # chuẩn hoá 0..1 theo gốc dưới-trái
+        
         nx = float(w.x) / float(cw) if cw else 0.0
         ny = float(w.y) / float(ch) if ch else 0.0
         nw = float(w.width) / float(cw) if cw else 0.0
@@ -2693,7 +2692,7 @@ class ChatApp(MDApp):
 
     def _apply_widget_record(self, rec, *, is_update=False):
         if not self.current_open_board or rec.get("file") != self.current_open_board:
-            return  # chỉ áp cho whiteboard đang mở
+            return  
 
         wid =  norm_uuid_hyphen(rec["id"])
         cw, ch = self.todo_board.width, self.todo_board.height
@@ -2709,13 +2708,13 @@ class ChatApp(MDApp):
         tsz  = float(rec.get("text_size", 14))
         talign = rec.get("text_align", "center") or "center"
 
-        # Tắt phát lại PATCH khi set thuộc tính (tránh vòng lặp)
+        
         self._suppress_widget_events.add(wid)
         try:
             if wid not in self.todo_widget_by_id:
-                # tạo mới
+                
                 wdg = DraggableResizableWidget(widget_id=wid)
-                # kích thước + style + text
+                
                 wdg.pos = (x, y)
                 wdg.angle = angle
                 wdg.size = (w, h)
@@ -2725,15 +2724,15 @@ class ChatApp(MDApp):
                 wdg.text_size = tsz
                 wdg.text_align = talign
                 wdg.text = text
-                # cập nhật label hiển thị
-                # (Widget class đã tự bind _update_content_text, nên gán text/text_size/text_align đủ)
+                
+                
                 self.todo_board.add_widget(wdg)
                 self.todo_widget_by_id[wid] = wdg
-                # gắn các binding để gửi UPDATE khi user sửa
+                
                 self._attach_widget_bindings(wdg)
             else:
                 wdg = self.todo_widget_by_id[wid]
-                # cập nhật thuộc tính
+                
                 wdg.pos = (x, y)
                 wdg.size = (w, h)
                 wdg.angle = angle
@@ -2747,11 +2746,11 @@ class ChatApp(MDApp):
             Clock.schedule_once(lambda dt: self._suppress_widget_events.discard(wid), 0)
 
     def _attach_widget_bindings(self, wdg: DraggableResizableWidget):
-        # Debounce update theo ID
+        
         def _schedule_update(*args):
             if wdg.widget_id in self._suppress_widget_events:
                 return
-            # gom dữ liệu hiện tại và gửi PATCH sau 100ms
+            
 
             def get_patch():
                 payload = self._serialize_widget(wdg)
@@ -2766,23 +2765,23 @@ class ChatApp(MDApp):
             def _do_patch(__dt):
                 threading.Thread(target=get_patch).start()
 
-            # huỷ timer cũ nếu có, rồi đặt lại
+            
             if wdg.widget_id in self._widget_update_timers:
                 try: self._widget_update_timers[wdg.widget_id].cancel()
                 except: pass
             self._widget_update_timers[wdg.widget_id] = Clock.schedule_once(_do_patch, 0.1)
 
-        # vị trí/kích thước/góc
+        
         wdg.bind(pos=_schedule_update, size=_schedule_update, angle=_schedule_update)
-        # nội dung & style
+        
         wdg.bind(text=_schedule_update, text_size=_schedule_update, text_align=_schedule_update)
         wdg.bind(text_color=_schedule_update, line_color=_schedule_update)
-        # bg color của widget là md_bg_color (thuộc tính MDCard) → phải bind thông qua on_...
-        # KivyMD không luôn phát sự kiện property cho md_bg_color, nên bọc lại bằng schedule nhỏ:
+        
+        
         def _on_bg_color_change(*_):
             _schedule_update()
-        # gọi khi bạn đổi màu qua color picker
-        # (ở chỗ set pen/widget color bạn có thao tác gán md_bg_color trực tiếp)
+        
+        
         wdg.bind(md_bg_color=lambda *_: Clock.schedule_once(lambda __: _on_bg_color_change(), 0))
 
     def _insert_widget_to_db(self, wdg: DraggableResizableWidget):
@@ -3178,7 +3177,7 @@ class ChatApp(MDApp):
                             "width": row["width"],
                             "color": tuple(row["color"])
                         })
-                # tải widgets ở nền
+                
                 run_bg(lambda: self.load_widgets(name))
             Clock.schedule_once(_apply, 0)
 
@@ -3204,7 +3203,7 @@ class ChatApp(MDApp):
 
         """Display a message with modern UI styling"""
         
-        # Check if last message is from same sender within 1 minute
+        
         should_merge = False
         if len(self.msg_list.children) > 0:
             last_widget = self.msg_list.children[0]
@@ -3219,7 +3218,7 @@ class ChatApp(MDApp):
                     pass
         
         if should_merge:
-            # Append to existing card
+            
             last_widget = self.msg_list.children[0]
             msg_label = MDLabel(
                 text=format_text_with_fonts(content),
@@ -3234,8 +3233,8 @@ class ChatApp(MDApp):
             last_widget.add_widget(msg_label)
             last_widget.last_timestamp = timestamp
         else:
-            # Create new card
-            msg_card = MDCard(
+            
+            msg_card = AnimatedCard(
                 orientation="vertical",
                 size_hint=(1, None),
                 padding=[dp(10), dp(10), dp(10), dp(10)],
@@ -3248,7 +3247,7 @@ class ChatApp(MDApp):
             msg_card.sender = sender
             msg_card.last_timestamp = timestamp
             
-            # Message header with sender name
+            
             header_layout = MDBoxLayout(size_hint=(1, None), height=dp(25), spacing=dp(5))
             morning = datetime.strptime("05:00", "%H:%M").time()
             evening = datetime.strptime("18:00", "%H:%M").time()
@@ -3265,7 +3264,7 @@ class ChatApp(MDApp):
             )
             header_layout.add_widget(sender_label)
             
-            # Message content
+            
             msg_label = MDLabel(
                 text=format_text_with_fonts(content),
                 halign="left",
@@ -3289,7 +3288,7 @@ class ChatApp(MDApp):
         global file_id_list
         """Display a message with modern UI styling"""
         
-        # Create new card
+        
         file_card = MDCard(
             orientation="vertical",
             size_hint=(1, None),
@@ -3301,7 +3300,7 @@ class ChatApp(MDApp):
             on_release=lambda dt: Clock.schedule_once(lambda x: self.load_todo_strokes(file))
         )
         
-        # Message header with file name
+        
         header_layout = MDBoxLayout(size_hint=(1, None), height=dp(25), spacing=dp(5))
         symbol = "\u2022"
         file_label = MDLabel(
@@ -3328,7 +3327,7 @@ class ChatApp(MDApp):
         if not multi:
             label = MDLabel(
                 text=format_text_with_fonts(emoji),
-                font_size="32sp",
+                font_size="64sp",
                 size_hint=(None, None),
                 pos=(pos[0] - 25, pos[1] - 25),
                 markup=True
@@ -3336,7 +3335,6 @@ class ChatApp(MDApp):
 
             Window.add_widget(label)
 
-            # animation bay lên + mờ dần
             anim = (
                 Animation(y=label.y + 60, opacity=0, duration=0.8)
             )
@@ -3345,40 +3343,40 @@ class ChatApp(MDApp):
             anim.start(label)
         else:
             count = random.randint(10, 15)
-
             win_w, win_h = Window.size
 
-            for _ in range(count):
-                # spawn ở đáy màn hình
-                x = random.randint(0, int(win_w - 50))
-                y = -50
+            for i in range(count):
+                delay = i * 0.08  
 
-                # đích đến random toàn màn hình
-                target_y = random.randint(int(win_h * 0.3), int(win_h))
+                def spawn(dt, i=i):
+                    x = random.randint(0, int(win_w - 50))
+                    y = -50
 
-                label = MDLabel(
-                    text=format_text_with_fonts(emoji),
-                    font_size="32sp",
-                    size_hint=(None, None),
-                    pos=(x, y),
-                    opacity=1,
-                    markup=True
-                )
+                    target_y = random.randint(int(win_h * 0.3), int(win_h))
 
-                Window.add_widget(label)
+                    label = MDLabel(
+                        text=format_text_with_fonts(emoji),
+                        font_size="32sp",
+                        size_hint=(None, None),
+                        pos=(x, y),
+                        opacity=1,
+                        markup=True
+                    )
 
-                # bay nhẹ lên + fade
-                dy = random.randint(40, 100)
+                    Window.add_widget(label)
 
-                anim = Animation(
-                    y=target_y,
-                    opacity=0,
-                    duration=random.uniform(3, 5),
-                    t="out_quad"
-                )
+                    anim = Animation(
+                        y=target_y,
+                        opacity=0,
+                        duration=random.uniform(3, 5),
+                        t="out_quad"
+                    )
 
-                anim.bind(on_complete=lambda *x: Window.remove_widget(label))
-                anim.start(label)
+                    
+                    anim.bind(on_complete=lambda anim, widget: Window.remove_widget(widget))
+                    anim.start(label)
+
+                Clock.schedule_once(spawn, delay)
     
     def send_emoji(self, pos=(0, 0)):
         self.spawn_emoji(pos=pos)
@@ -3447,7 +3445,7 @@ class ChatApp(MDApp):
 
     def listen_realtime(self):
         async def realtime_loop():
-            while True:  # 🔁 vòng reconnect
+            while True:  
                 try:
                     url = (
                         "wss://fjhakjrxbdiowjkppgzy.supabase.co/realtime/v1/websocket"
@@ -3464,7 +3462,7 @@ class ChatApp(MDApp):
                         ping_interval=20,
                         ping_timeout=20
                     ) as ws:
-                        # Join channel
+                        
                         await ws.send(json.dumps({
                             "topic": "realtime:public:messages",
                             "event": "phx_join",
@@ -3540,7 +3538,7 @@ class ChatApp(MDApp):
                                             Clock.schedule_once(lambda dt: self.todo_scroll.add_widget(MDLabel(text="Chưa có whiteboard nào được tạo hết ;-;", halign='center', valign='center', size_hint=(1, 1))))
                                         Clock.schedule_once(lambda dt: self.todo_browse.remove_widget(file_id_list[record["id"]]))
                                     if data.get("topic") == "realtime:public:widgets":
-                                        rec = record  # old_record
+                                        rec = record  
                                         wid = norm_uuid_hyphen(record.get("id"))
                                         def _remove(*args):
                                             wdg = self.todo_widget_by_id.pop(wid, None)
@@ -3567,10 +3565,10 @@ class ChatApp(MDApp):
                             if data.get("event") in ("INSERT", "UPDATE"):
                                 if data.get("topic") == "realtime:public:widgets":
                                     rec = record
-                                    # Bỏ qua echo của chính mình (nếu muốn)
+                                    
                                     if rec.get("sender") == self.user_id:
                                         continue
-                                    # Áp vào UI (nếu là UPDATE, _apply_widget_record sẽ cập nhật thuộc tính)
+                                    
                                     Clock.schedule_once(lambda dt, r=rec: self._apply_widget_record(r, is_update=(data.get("event")=="UPDATE")), 0)
                                     continue
 
@@ -3608,11 +3606,11 @@ class ChatApp(MDApp):
                                         self.noti.button.disabled=False
                                         expand_vertical(self.noti, dp(40))
                                     else:
-                                        if msg_id_list.get('0000'): Clock.schedule_once(lambda dt: self.msg_list.remove_widget(msg_id_list['0000'].parent))
-                                        Clock.schedule_once(
-                                            lambda dt, s=sender, c=content, t=timestamp, d=date, msg_id=msg_id:
-                                            self.display_message(s, c, t, d, msg_id)
-                                        )
+                                        def display(*args):
+                                            if msg_id_list.get('0000'): self.msg_list.remove_widget(msg_id_list['0000'].parent)
+                                            Clock.schedule_once(lambda dt: self.display_message(sender, content, timestamp, date, msg_id), 0.15)
+
+                                        Clock.schedule_once(display)
                                         if 'iu' in content.lower().translate(str.maketrans('', '', '.,?!')).split(): Clock.schedule_once(lambda x: self.spawn_emoji(multi=True))
 
                                     if sender != self.user_id and (platform!="android" or not self.app_in_foreground):
@@ -3623,7 +3621,7 @@ class ChatApp(MDApp):
 
                 except Exception as e:
                     print("Realtime socket died:", e)
-                    await asyncio.sleep(3)  # ⏳ đợi rồi tự reconnect
+                    await asyncio.sleep(3)  
 
         def start():
             asyncio.run(realtime_loop())
@@ -3665,7 +3663,7 @@ class ChatApp(MDApp):
                 with open("main.script", "w", encoding="utf-8") as fo, open("temp_main.script", encoding="utf-8") as fi: fo.write(fi.read())
                 os.remove("temp_main.script")
 
-                # quay về UI thread khi xong
+                
                 Clock.schedule_once(lambda dt: self.finish_update())
 
             except Exception as e:
@@ -3893,5 +3891,5 @@ class ChatApp(MDApp):
                 print("WISHLIST DELETE ERR:", e)
 
         threading.Thread(target=send, daemon=True).start()
-
+        
 ChatApp().run()
