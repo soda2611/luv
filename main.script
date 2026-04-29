@@ -1,4 +1,3 @@
-
 import asyncio, os, re, requests, threading, time, random, websockets, ssl, json, colorsys, socket
 from datetime import datetime
 from kivymd.app import MDApp
@@ -347,9 +346,7 @@ def stroke_in_viewport(stroke, vp):
 
 class AnimatedAddWidgetMixin:
     def add_widget(self, widget, index=0, canvas=None):
-        
         super().add_widget(widget, index=index, canvas=canvas)
-
         def start_anim():
             x, y = widget.pos
             widget.opacity = 0
@@ -358,19 +355,21 @@ class AnimatedAddWidgetMixin:
             anim = Animation(opacity=1, pos=(x, y), duration=0.65, t='out_quart')
             anim.start(widget)
 
-        Clock.schedule_once(lambda dt: start_anim())
+        Clock.schedule_once(lambda dt: start_anim(), 0.3)
 
     def remove_widget(self, widget):
         x, y = widget.pos
         anim = Animation(opacity=0, pos=(x, y - dp(30)), duration=0.25, t='in_quart')
 
         def finish_remove(*args):
-            if type(widget.parent) == AnimatedBoxLayout:
-                super(MDBoxLayout, self).remove_widget(widget)
-            elif type(widget.parent) == AnimatedFloatLayout:
-                super(MDFloatLayout, self).remove_widget(widget)
-            elif type(widget.parent) == AnimatedCard:
-                super(MDCard, self).remove_widget(widget)
+            parent = widget.parent
+            if parent and widget in parent.children:
+                if isinstance(parent, AnimatedBoxLayout):
+                    MDBoxLayout.remove_widget(parent, widget)
+                elif isinstance(parent, AnimatedFloatLayout):
+                    MDFloatLayout.remove_widget(parent, widget)
+                elif isinstance(parent, AnimatedCard):
+                    MDCard.remove_widget(parent, widget)
 
         anim.bind(on_complete=finish_remove)
         anim.start(widget)
@@ -3871,5 +3870,5 @@ class ChatApp(MDApp):
                 print("WISHLIST DELETE ERR:", e)
 
         threading.Thread(target=send, daemon=True).start()
-        
+
 ChatApp().run()
