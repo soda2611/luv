@@ -1,4 +1,4 @@
-import asyncio, os, re, requests, threading, time, random, websockets, ssl, json, colorsys, socket
+import asyncio, os, re, requests, threading, time, random, websockets, ssl, json, colorsys, socket, signal
 from datetime import datetime
 from kivymd.app import MDApp
 from kivymd.uix.boxlayout import MDBoxLayout
@@ -1776,10 +1776,6 @@ class ChatApp(MDApp):
         layout = MDBoxLayout(orientation="vertical", padding=[dp(20), dp(10), dp(20), dp(35)], spacing=dp(10), md_bg_color=bg)
         todo_layout = MDBoxLayout(orientation="vertical", padding=[dp(20), dp(10), dp(20), dp(35)], spacing=dp(10), md_bg_color=bg)
 
-        #-------------------------------------------------------------
-
-        #-------------------------------------------------------------
-
         self.top_bar = MDBoxLayout(size_hint=(1, None), height=dp(50), padding=dp(5), spacing=dp(10))
         self.top_icon = MDFillRoundFlatButton(
             text=format_text_with_fonts("\U0001F496 ngha và hmn", True),
@@ -1873,10 +1869,6 @@ class ChatApp(MDApp):
         layout.add_widget(self.noti)
         layout.add_widget(self.msg_scroll)
         layout.add_widget(self.input_card)
-
-        #-------------------------------------------------------------
-
-        #-------------------------------------------------------------
 
         self.todo_top_bar = MDBoxLayout(size_hint=(1, None), height=dp(50), padding=dp(5), spacing=dp(10))
         self.todo_top_icon = MDFillRoundFlatIconButton(
@@ -2081,27 +2073,6 @@ class ChatApp(MDApp):
         todo_layout.add_widget(self.todo_scroll)
         todo_layout.add_widget(self.todo_new_whiteboard_button)
 
-        Clock.schedule_once(lambda dt: self.set_ttbgo_width(), 0)
-        Clock.schedule_once(lambda dt: self.sync_overlay_height(), 0)
-        Clock.schedule_once(lambda dt: self.load_messages(), 0)
-        Clock.schedule_once(lambda dt: self.load_todo_list(), 0)
-        Clock.schedule_interval(self._flush_draw_queue, 1 / 60)
-        Clock.schedule_interval(self._flush_todo_draw_queue, 1 / 60)
-        self.listen_realtime()
-
-        self.sm = MDScreenManager(transition=MDFadeSlideTransition())
-        todo = MDScreen(name="to-do")
-        chat = MDScreen(name="chat")
-        chat.add_widget(layout)
-        todo.add_widget(todo_layout)
-        self.sm.add_widget(chat)
-        self.sm.add_widget(todo)
-
-        if datetime.strftime(datetime.now(), "%d/%m/%Y") == "06/03/2026":
-            Clock.schedule_once(lambda dt: setattr(self.sm, "current", "to-do"), 0)
-            Clock.schedule_once(lambda dt: self.load_todo_strokes("sít rịt for ngha"), 3)
-
-        self.wishlist_screen = MDScreen(name="wishlist")
         wishlist_layout = MDBoxLayout(orientation="vertical",
                                       padding=[dp(20), dp(10), dp(20), dp(35)],
                                       spacing=dp(10), md_bg_color=bg)
@@ -2197,8 +2168,28 @@ class ChatApp(MDApp):
         wishlist_layout.add_widget(self.wishlist_form_wrap)
         self.wishlist_form_scroll.add_widget(self.wishlist_form)
 
+        Clock.schedule_once(lambda dt: self.set_ttbgo_width(), 0)
+        Clock.schedule_once(lambda dt: self.sync_overlay_height(), 0)
+        Clock.schedule_once(lambda dt: self.load_messages(), 0)
+        Clock.schedule_once(lambda dt: self.load_todo_list(), 0)
+        Clock.schedule_interval(self._flush_draw_queue, 1 / 60)
+        Clock.schedule_interval(self._flush_todo_draw_queue, 1 / 60)
+        self.listen_realtime()
+
+        self.sm = MDScreenManager(transition=MDFadeSlideTransition())
+        todo = MDScreen(name="to-do")
+        chat = MDScreen(name="chat")
+        self.wishlist_screen = MDScreen(name="wishlist")
+        chat.add_widget(layout)
+        todo.add_widget(todo_layout)
         self.wishlist_screen.add_widget(wishlist_layout)
+        self.sm.add_widget(chat)
+        self.sm.add_widget(todo)
         self.sm.add_widget(self.wishlist_screen)
+
+        if datetime.strftime(datetime.now(), "%d/%m/%Y") == "06/03/2026":
+            Clock.schedule_once(lambda dt: setattr(self.sm, "current", "to-do"), 0)
+            Clock.schedule_once(lambda dt: self.load_todo_strokes("sít rịt for ngha"), 3)
 
         return self.sm
 
@@ -3500,7 +3491,7 @@ class ChatApp(MDApp):
                 MDFillRoundFlatButton(
                     text="OK",
                     md_bg_color=btn,
-                    on_release=self.stop
+                    on_release=lambda instance: os.kill(os.getpid(), signal.SIGTERM)
                 )
             ],
             auto_dismiss=False,
