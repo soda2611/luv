@@ -122,6 +122,11 @@ function renderDateHeader(date) {
   msgCtn.appendChild(div);
 }
 
+function toTime(str) {
+  const [h, m] = str.split(":").map(Number);
+  return h * 60 + m; // convert sang phút
+}
+
 function createMessageCard(sender, content, time) {
   const box = document.createElement("div");
 
@@ -129,8 +134,14 @@ function createMessageCard(sender, content, time) {
   box.dataset.sender = sender;
   box.dataset.time = time;
 
+  const current = toTime(time);
+
+  const emoji = (current >= toTime("05:00") && current <= toTime("18:00"))
+  ? "☀️"
+  : "⭐";
+
   box.innerHTML = `
-    <div class="meta">${sender} • ${time}</div>
+    <div class="meta"><b>${sender} • ${time}</b> ${emoji}</div>
     <div class="content">${content}</div>
   `;
 
