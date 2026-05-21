@@ -1,4 +1,4 @@
-*
-!.gitignore
-!*.script
-!resources/*
+buildozer.spec
+uid.txt
+main.py
+update.bat
