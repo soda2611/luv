@@ -34,7 +34,7 @@ html {
     -ms-user-select: none;
     user-select: none;
     overflow: hidden;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-family: 'Segoe UI', 'Segoe UI Emoji', Geneva, Verdana, sans-serif;
 }
 
 body {
