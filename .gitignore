@@ -1,4 +1,4 @@
-buildozer.spec
-uid.txt
-main.py
-update.bat
+*
+!.gitignore
+!*.script
+!resources/*
