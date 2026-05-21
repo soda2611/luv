@@ -1,4 +1,5 @@
 *
+*.py
 !.gitignore
 !*.script
-!resources/*
+!Python/*
