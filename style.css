@@ -107,6 +107,45 @@ hr {
     .sidenav a {font-size: 18px;}
 }
 
+
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.4);
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-box {
+  background: white;
+  padding: 20px;
+  border-radius: 15px;
+  width: 80%;
+  max-width: 300px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.modal-box input {
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid #ddd;
+}
+
+.modal-box button {
+  padding: 10px;
+  border: none;
+  background: #ff6b81;
+  color: white;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
 #header {
     position: relative;
     display: flex;

@@ -12,11 +12,13 @@
         <link rel="icon" href="resources/img/Icon.png" type="image/svg+xml">
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alfa+Slab+One&family=Coiny&display=swap">
         <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+        <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+        <script src="script.js" defer></script>
     </head>
     <body>
-        <script src="script.js"></script>
-
         <div style="position: absolute; width: 90%; height: calc(100% - 1.5rem); display:flex; flex-direction: column; gap: var(--spacing)">
             <div id="header">
                 <span>💖 <b>ngha và hmn</b></span>
@@ -30,13 +32,30 @@
                 <i class="material-icons" style="font-size: 1.5rem;">send</i>
             </div>
         </div>
+
+        <div id="date-modal" class="modal">
+            <div class="modal-box">
+                <h3>Chọn ngày</h3>
+                <input id="datePicker" placeholder="Chọn ngày">
+                <button onclick="confirmDate()">Xem</button>
+            </div>
+        </div>
+        
+        <div id="uid-modal" class="modal">
+            <div class="modal-box">
+                <h3>Đổi UID</h3>
+                <input id="uid-input" placeholder="Nhập UID...">
+                <button onclick="saveUID()">Lưu</button>
+            </div>
+        </div>
+
         <div id="sidenav" class="sidenav">
             <a id="close" class="closebtn" onclick="closeNav()">&times;</a>
             <a>Wishlist<i class="material-icons" style="position: relative; font-size: 1.25rem; top: 0">auto_awesome</i></a>
             <a>Whiteboard<i class="material-icons" style="position: relative; font-size: 1.25rem; top: 0">gesture</i></a>
             <div style="padding-left: 1.5rem; padding-right: 1.5rem; width: 90%;"><hr></div>
-            <a style="gap: var(--spacing); text-align: center"><i class="material-icons" style="position: relative; font-size: 2rem;">history</i>Xem tin nhắn cũ</a>
-            <a style="gap: var(--spacing); text-align: center"><i class="material-icons" style="position: relative; font-size: 2rem;">person</i>Đổi UID</a>
+            <a onclick="openDatePicker()" style="gap: var(--spacing); text-align: center"><i class="material-icons" style="position: relative; font-size: 2rem;">history</i>Xem tin nhắn cũ</a>
+            <a onclick="openUIDModal()" style="gap: var(--spacing); text-align: center"><i class="material-icons" style="position: relative; font-size: 2rem;">person</i>Đổi UID</a>
         </div>
     </body>
 </html>
