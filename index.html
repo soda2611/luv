@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>luv</title>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta property="og:title" content="luv">
+        <meta property="og:description" content="góc riêng của ngha và hmn">
+        <meta property="og:image" content="images/avt.png">
+        <meta property="og:url" content="https://soda2611.github.io/cv">
+        <link rel="stylesheet" href="style.css">
+        <link rel="icon" href="resources/img/Icon.png" type="image/svg+xml">
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+    </head>
+    <body>
+        <script src="script.js"></script>
+
+        <div style="position: absolute; width: 90%; height: calc(100% - 1.5rem); display:flex; flex-direction: column; gap: var(--spacing)">
+            <div id="header">
+                <span>💖 <b>ngha và hmn</b></span>
+                <span style="display: flex; flex-grow: 1"></span>
+                <span id="date-counter">☀️ &lt3 ⭐</span>
+                <a onclick="openNav()" id="id-tag">id</a>
+            </div>
+            <div id="msg-ctn"></div>
+            <div id="msg-inp">
+                <input id="inp" placeholder="Viết lời iu thương vào đây nề <3">
+                <i class="material-icons" style="font-size: 1.5rem;">send</i>
+            </div>
+        </div>
+        <div id="sidenav" class="sidenav">
+            <a id="close" class="closebtn" onclick="closeNav()">&times;</a>
+            <a>Wishlist<i class="material-icons" style="position: relative; font-size: 1.25rem; top: 0">auto_awesome</i></a>
+            <a>Whiteboard<i class="material-icons" style="position: relative; font-size: 1.25rem; top: 0">gesture</i></a>
+            <div style="padding-left: 1.5rem; padding-right: 1.5rem; width: 90%;"><hr></div>
+            <a style="gap: var(--spacing); text-align: center"><i class="material-icons" style="position: relative; font-size: 2rem;">history</i>Xem tin nhắn cũ</a>
+            <a style="gap: var(--spacing); text-align: center"><i class="material-icons" style="position: relative; font-size: 2rem;">person</i>Đổi UID</a>
+        </div>
+    </body>
+</html>

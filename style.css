@@ -1,0 +1,172 @@
+:root {
+    --spacing: 0.5rem;
+    --bg-color: rgba(255, 242, 242, 1);
+    --ctn-color: rgba(250, 212, 212, 1);
+    --ctn-color-2: rgba(239, 159, 159, 1);
+    --ctn-color-2-25: rgba(239, 159, 159, 0.25);
+    --btn-color: rgba(244, 124, 124, 1);
+    --primary-txt-color: rgba(0, 0, 0, 1);
+    --secondary-txt-color: rgb(255, 255, 255);
+}
+
+html {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    overflow: hidden;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background-color: var(--bg-color);
+}
+
+hr {
+    border: none;
+    border-top: 0.2rem solid var(--btn-color);
+    margin: 1rem 0;
+}
+
+.content-box {
+    background-color: var(--ctn-color);
+}
+
+.button-container {
+    background-color: var(--btn-color);
+}
+
+.material-icons {
+    color: var(--btn-color);
+}
+
+.sidenav {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    height: calc(100% - 65px);
+    width: 100vw;
+    position: fixed;
+    z-index: 1;
+    bottom: -100%;
+    backdrop-filter: blur(10px);
+    background: var(--ctn-color-2-25);
+    overflow-x: hidden;
+    padding-top: 60px;
+    transition: 0.5s;
+}
+
+.sidenav a {
+    position: relative;
+    border-radius: 10rem;
+    padding: 16px 8px 8px 24px;
+    font-family: "Coiny", "system-ui";
+    text-decoration: none;
+    font-size: 1.5rem;
+    color: var(--btn-color);
+    width: 85%;
+    display: flex;
+    transition: 0.3s;
+}
+
+.sidenav a i {
+    transition: 0.3s;
+}
+
+#close {
+    width: 15px;
+    height: 15px;
+    font-family: "Coiny", "system-ui";
+    color: var(--btn-color);
+    background-color: transparent;
+    cursor: pointer;
+}
+
+.sidenav a:hover {
+    color: var(--bg-color);
+    background-color: var(--btn-color);
+}
+
+.sidenav a:hover i {
+    color: var(--bg-color);
+}
+
+.sidenav .closebtn {
+    position: absolute;
+    top: 0;
+    right: 25px;
+    font-size: 36px;
+    margin-left: 50px;
+}
+
+@media screen and (max-height: 450px) {
+    .sidenav {padding-top: 15px;}
+    .sidenav a {font-size: 18px;}
+}
+
+#header {
+    position: relative;
+    display: flex;
+    align-items: center;
+    padding-left: 1rem;
+    padding-right: 1rem;
+    gap: var(--spacing);
+    height: 4rem;
+    font-size: 0.9rem;
+    border-bottom: 0.2rem solid var(--btn-color);
+}
+
+#date-counter {
+    background-color: var(--ctn-color);
+    border: 0.01rem solid var(--btn-color);
+    border-radius: 10rem;
+    padding: 0.6rem;
+    cursor: pointer;
+}
+
+#id-tag {
+    background-color: var(--btn-color);
+    color: var(--secondary-txt-color);
+    border: 0.01rem solid var(--btn-color);
+    border-radius: 10rem;
+    padding: 0.6rem;
+    min-width: 3rem;
+    text-align: center;
+    cursor: pointer;
+}
+
+#msg-ctn {
+    overflow-x: hidden;
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+}
+
+#msg-inp {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: var(--ctn-color);
+    border-radius: 10rem;
+    padding-left: 2rem;
+    padding-right: 2rem;
+    gap: var(--spacing)
+}
+
+#inp {
+    display: flex; 
+    flex-grow: 1; 
+    border: none; 
+    height: 4.5rem; 
+    background-color: var(--ctn-color); 
+    color: black; 
+    font-size: 1rem;
+}
+
+#inp:focus {
+    outline: none;
+    border: none;
+}

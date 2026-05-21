@@ -2,3 +2,6 @@
 !.gitignore
 !*.script
 !resources/*
+!*.html
+!*.css
+!*.js
