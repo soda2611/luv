@@ -309,9 +309,9 @@ startRealtime();
 /* ========================= ⚙️ NAV ========================= */
 
 function openNav() {
-  document.getElementById("sidenav").style.bottom = "0";
+  document.getElementById("sidenav").style.top = "0";
 }
 
 function closeNav() {
-  document.getElementById("sidenav").style.bottom = "-100%";
+  document.getElementById("sidenav").style.top = "100%";
 }
