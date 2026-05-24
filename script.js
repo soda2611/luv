@@ -41,7 +41,7 @@ function getCurrentTime() {
 let userId = localStorage.getItem("uid");
 
 if (!userId) {
-  userId = "user_" + Math.random().toString(36).slice(2, 8);
+  userId = "ngha";
   localStorage.setItem("uid", userId);
 }
 
@@ -73,13 +73,15 @@ function openDatePicker() {
   closeNav();
   document.getElementById("date-modal").style.display = "flex";
 }
-
+  
 function confirmDate() {
   const val = document.getElementById("datePicker").value;
   if (!val) return;
 
-  loadMessages(formatDateVN(val));
-  closeModal();
+  const formatted = formatDateVN(val);
+
+  localStorage.setItem("selectedDate", formatted);
+  window.location.href = "index.html";
 }
 
 function closeModal() {
@@ -303,7 +305,15 @@ if (sendBtn && input) {
 
 /* ========================= 🚀 START ========================= */
 
-loadMessages(getCurrentDate());
+const savedDate = localStorage.getItem("selectedDate");
+
+if (savedDate) {
+  loadMessages(savedDate);
+  localStorage.removeItem("selectedDate"); // dùng xong xoá
+} else {
+  loadMessages(getCurrentDate());
+}
+
 startRealtime();
 
 /* ========================= ⚙️ NAV ========================= */

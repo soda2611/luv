@@ -14,9 +14,11 @@
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alfa+Slab+One&family=Coiny&display=swap">
         <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+        <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined">
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
         <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
         <script src="script.js" defer></script>
+        <script src="wl.js" defer></script>
     </head>
     <body>
         <div style="position: absolute; width: 90%; height: calc(100% - 1.5rem); display:flex; flex-direction: column; gap: var(--spacing);">
@@ -26,12 +28,23 @@
                 <span id="date-counter">☀️ &lt3 ⭐</span>
                 <a onclick="openNav()" id="id-tag">id</a>
             </div>
-            <div id="msg-ctn"></div>
-            <div id="msg-inp">
-                <input id="inp" placeholder="Viết lời iu thương vào đây nề <3">
-                <i class="material-icons" style="font-size: 1.5rem;">send</i>
+
+            <div id="wishlist-list"></div>
+
+            <div id="wl-form">
+                <div style="position: relative; display: flex; flex-direction: column; overflow-y: scroll; height: 100%; gap: 1rem;">
+                    <span style="display: flex; align-items: center;"><i class="material-icons-outlined" style="position: relative; font-size: 1.75rem;">favorite_border</i><input id="wl-content" placeholder="Thêm điều ước nè <3"></span>
+                    <span style="display: flex; align-items: center;"><i class="material-icons-outlined" style="position: relative; font-size: 1.75rem;">sell</i><input id="wl-category" placeholder="Danh mục"></span>
+                    <span style="display: flex; align-items: center;"><i class="material-icons-outlined" style="position: relative; font-size: 1.75rem;">sticky_note_2</i><input id="wl-note" placeholder="Ghi chú"></span>
+                    <span style="display: flex; align-items: center;"><i class="material-icons-outlined" style="position: relative; font-size: 1.75rem;">link</i><input id="wl-link" placeholder="Link"></span>
+                    <span style="display: flex; align-items: center; gap: var(--spacing)"><span id="priority-value">🌹 Mức ưu tiên: 3</span><input id="wl-priority" type="range" min="1" max="5" value="3" style="flex: 1;" oninput="updatePriorityLabel(this.value)"></span>
+                    <button style="border-radius: 10rem; border: none; padding: 0.75rem; background-color: var(--btn-color); color: var(--bg-color)" onclick="handleCreateWL()">Lưu</button>
+                </div>
+            </div>
+
             </div>
         </div>
+
 
         <div id="date-modal" class="modal">
             <div class="modal-box">
