@@ -29,22 +29,21 @@
                 <a onclick="openNav()" id="id-tag">id</a>
             </div>
 
-            <div id="wishlist-list"></div>
+            <div style="display: flex; flex-grow: 1; overflow-y: auto; padding: var(--spacing)"><div id="wishlist-list"></div></div>
 
             <div id="wl-form">
-                <div style="position: relative; display: flex; flex-direction: column; overflow-y: scroll; height: 100%; gap: 1rem;">
+                <div style="position: relative; display: flex; flex-direction: column; overflow-y: auto; height: 10rem; gap: 1rem;">
                     <span style="display: flex; align-items: center;"><i class="material-icons-outlined" style="position: relative; font-size: 1.75rem;">favorite_border</i><input id="wl-content" placeholder="Thêm điều ước nè <3"></span>
                     <span style="display: flex; align-items: center;"><i class="material-icons-outlined" style="position: relative; font-size: 1.75rem;">sell</i><input id="wl-category" placeholder="Danh mục"></span>
                     <span style="display: flex; align-items: center;"><i class="material-icons-outlined" style="position: relative; font-size: 1.75rem;">sticky_note_2</i><input id="wl-note" placeholder="Ghi chú"></span>
                     <span style="display: flex; align-items: center;"><i class="material-icons-outlined" style="position: relative; font-size: 1.75rem;">link</i><input id="wl-link" placeholder="Link"></span>
                     <span style="display: flex; align-items: center; gap: var(--spacing)"><span id="priority-value">🌹 Mức ưu tiên: 3</span><input id="wl-priority" type="range" min="1" max="5" value="3" style="flex: 1;" oninput="updatePriorityLabel(this.value)"></span>
-                    <button style="border-radius: 10rem; border: none; padding: 0.75rem; background-color: var(--btn-color); color: var(--bg-color)" onclick="handleCreateWL()">Lưu</button>
                 </div>
+                <button style="width: 100%; border-radius: 10rem; border: none; padding: 0.75rem; background-color: var(--btn-color); color: var(--bg-color)" onclick="handleCreateWL()">Lưu</button>
             </div>
 
             </div>
         </div>
-
 
         <div id="date-modal" class="modal">
             <div class="modal-box">
@@ -65,7 +64,7 @@
         <div id="sidenav" class="sidenav">
             <a id="close" class="closebtn" onclick="closeNav()">&times;</a>
             <a href="wl.html">Wishlist<i class="material-icons" style="position: relative; font-size: 1.25rem; top: 0">auto_awesome</i></a>
-            <a>Whiteboard<i class="material-icons" style="position: relative; font-size: 1.25rem; top: 0">gesture</i></a>
+            <a href="wb.html">Whiteboard<i class="material-icons" style="position: relative; font-size: 1.25rem; top: 0">gesture</i></a>
             <div style="padding-left: 1.5rem; padding-right: 1.5rem; width: 90%;"><hr></div>
             <a onclick="openDatePicker()" style="gap: var(--spacing); text-align: center"><i class="material-icons" style="position: relative; font-size: 2rem;">history</i>Xem tin nhắn cũ</a>
             <a onclick="openUIDModal()" style="gap: var(--spacing); text-align: center"><i class="material-icons" style="position: relative; font-size: 2rem;">person</i>Đổi UID</a>

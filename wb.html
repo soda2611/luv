@@ -14,9 +14,11 @@
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alfa+Slab+One&family=Coiny&display=swap">
         <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+        <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined">
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
         <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
         <script src="script.js" defer></script>
+        <script src="wb.js" defer></script>
     </head>
     <body>
         <div style="position: absolute; width: 90%; height: calc(100% - 1.5rem); display:flex; flex-direction: column; gap: var(--spacing);">
@@ -26,10 +28,18 @@
                 <span id="date-counter">☀️ &lt3 ⭐</span>
                 <a onclick="openNav()" id="id-tag">id</a>
             </div>
-            <div id="msg-ctn"></div>
-            <div id="msg-inp">
-                <input id="inp" placeholder="Viết lời iu thương vào đây nề <3">
-                <i class="material-icons" style="font-size: 1.5rem;">send</i>
+
+            <div id="wb-scroll"><div id="whiteboard"></div></div>
+            
+            <div style="display: flex; justify-content: center; width: 100%; position: relative;">
+                <div id="wb-toolbar">
+                    <div style="position: relative; display: flex; overflow-x: auto; border-radius: 10rem; height: fit-content; width: fit-content; max-width: 350px; gap: 1rem;">
+                        <button style="display: flex; align-items: center;"><i class="material-icons" style="position: relative; font-size: 1.75rem;">touch_app</i></button>
+                        <button style="display: flex; align-items: center;"><i class="material-icons" style="position: relative; font-size: 1.75rem;">gesture</i></button>
+                        <button style="display: flex; align-items: center;"><i class="material-icons" style="position: relative; font-size: 1.75rem;">sticky_note_2</i></button>
+                        <button style="display: flex; align-items: center;"><i class="material-icons" style="position: relative; font-size: 1.75rem;">lock</i></button>
+                    </div>
+                </div>
             </div>
         </div>
 

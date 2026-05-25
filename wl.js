@@ -2,10 +2,10 @@
 
 const WL_URL = `${SUPABASE_URL}/rest/v1/wishlist`
 const wlList = document.getElementById("wishlist-list")
-const check_circle = `<i class="material-icons" style="color: rgba(244, 124, 124, 1); font-size: 1.25rem">check_circle</i>`
-const uncheck_circle = `<i class="material-icons-outlined" style="color: rgba(244, 124, 124, 1); font-size: 1.25rem">circle</i>`
+const check_circle = `<i class="material-icons" style="font-size: 1.6rem">check_circle</i>`
+const uncheck_circle = `<i class="material-icons-outlined" style="font-size: 1.6rem">circle</i>`
 const delete_icon = `<i class="material-icons" style="color: rgb(255, 45, 45); font-size: 1.25rem">delete</i>`
-const link_icon = `<i class="material-icons" style="color: rgba(244, 124, 124, 1); font-size: 1.25rem">link</i>`
+const link_icon = `<i class="material-icons" style="font-size: 1.25rem">link</i>`
 const tag_icon = `<i class="material-icons" style="font-size: 1.25rem">sell</i>`
 
 let wishlistMap = {}
@@ -83,16 +83,16 @@ function displayWishlistItem(row) {
 
   card.innerHTML = `
     <div class="wl-head">
-      <button class="toggle">${finished ? check_circle : uncheck_circle}</button>
-      <b style="display: flex; flex-grow: 1">${content || "(Không có nội dung)"}</b>
-      ${category ? `<div style="display: flex; align-items: center; gap: 0.25rem; color: ${priorityColor(priority)}">${tag_icon} ${category}</div>` : ""}
+      <button class="toggle" style="color: ${priorityColor(priority)}">${finished ? check_circle : uncheck_circle}</button>
+      <b style="display: flex; flex-grow: 1;">${content || "(Không có nội dung)"}</b>
+      ${category ? `<div style="display: flex; align-items: center; border-radius: 2rem; padding: 0.5rem; padding-inline: 1rem; gap: 0.25rem; background-color: rgba(255, 242, 242, 1); color: ${priorityColor(priority)}">${tag_icon} ${category}</div>` : ""}
     </div>
       
-    ${note ? `<div>📝 ${note}</div>` : ""}
+    <div style="display: flex; flex-grow: 1">${note ? `📝 ${note}` : ""}</div>
     <hr>
     <div style="display: flex; align-items: center; gap: 1rem">
-      <span style="color: gray">${priorityEmoji(priority)} Mức ưu tiên: ${priority}</span>
-      ${link ? `<a href="${link}" target="_blank" style="display: flex; align-items: center; gap: 0.25rem;">${link_icon} Link</a>` : ""}
+      <span style="color: ${priorityColor(priority)}; border-radius: 2rem; padding: 0.5rem; padding-inline: 0.75rem; gap: 0.25rem; background-color: rgba(255, 242, 242, 1)">${priorityEmoji(priority)} Mức ưu tiên: ${priority}</span>
+      ${link ? `<a href="${link}" target="_blank" style="display: flex; align-items: center; border-radius: 10rem; background-color: ${priorityColor(priority)}; padding: 0.5rem; padding-inline: 1rem; gap: 0.25rem; color: white">${link_icon} Link</a>` : ""}
       <span style="display: flex; flex-grow: 1"></span>
       <button class="delete">${delete_icon}</button>
     </div>
@@ -100,7 +100,9 @@ function displayWishlistItem(row) {
 
   /* toggle */
   card.querySelector(".toggle").onclick = () => {
-    toggleWishlistFinished(id, !finished)
+    const btn = card.querySelector(".toggle")
+    const isFinished = btn.innerHTML === check_circle
+    toggleWishlistFinished(id, !isFinished)
   }
 
   /* delete */
@@ -153,6 +155,11 @@ async function toggleWishlistFinished(id, value) {
       headers,
       body: JSON.stringify({ finished: value })
     })
+
+    const item = wishlistMap[id]
+    const btn = item.querySelector(".toggle")
+    btn.innerHTML = value ? check_circle : uncheck_circle
+
   } catch (err) {
     console.error("TOGGLE FAIL", err)
   }
@@ -239,13 +246,3 @@ function startRealtimeWishlist() {
 /* ========================= 🚀 START ========================= */
 loadWishlist();
 startRealtimeWishlist();
-
-/* ========================= ⚙️ NAV ========================= */
-
-function openNav() {
-  document.getElementById("sidenav").style.top = "0";
-}
-
-function closeNav() {
-  document.getElementById("sidenav").style.top = "100%";
-}

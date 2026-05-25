@@ -30,7 +30,7 @@
 
 ::-webkit-scrollbar {
   width: clamp(3px, 0.6vw, 6px);
-  height: 0px;
+  height: clamp(3px, 0.6vw, 6px);
 }
 
 ::-webkit-scrollbar-track {
@@ -61,11 +61,10 @@ input[type="range"]::-webkit-slider-runnable-track {
   border-radius: 10rem;
   background: linear-gradient(
     to right,
-    rgb(255, 64, 64),
-    rgb(255, 128, 51),
-    rgb(255, 204, 51),
-    rgb(77, 191, 89),
-    rgb(64, 153, 255)
+    var(--bg-color),
+    var(--ctn-color),
+    var(--ctn-color-2),
+    var(--btn-color)
   );
 }
 
@@ -86,11 +85,10 @@ input[type="range"]::-moz-range-track {
   border-radius: 10rem;
   background: linear-gradient(
     to right,
-    rgb(255, 64, 64),
-    rgb(255, 128, 51),
-    rgb(255, 204, 51),
-    rgb(77, 191, 89),
-    rgb(64, 153, 255)
+    var(--bg-color),
+    var(--ctn-color),
+    var(--ctn-color-2),
+    var(--btn-color)
   );
 }
 
@@ -108,7 +106,7 @@ html {
   -moz-user-select: none;
   -ms-user-select: none;
   user-select: none;
-  overflow: hidden;
+  min-height: 100%;
   font-family: "Segoe UI", "Segoe UI Emoji", Geneva, Verdana, sans-serif;
 }
 
@@ -116,8 +114,11 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
+  min-height: 100%;
+  width: 100%;
   background-color: var(--bg-color);
   color: var(--btn-color);
+  overflow-x: hidden;
 }
 
 hr {
@@ -163,6 +164,7 @@ input:focus {
   position: fixed;
   z-index: 1;
   top: 100%;
+  left: 0;
   backdrop-filter: blur(15px);
   background: var(--ctn-color-2-25);
   overflow-x: hidden;
@@ -173,7 +175,7 @@ input:focus {
 .sidenav a {
   position: relative;
   border-radius: 10rem;
-  padding: 16px 8px 8px 24px;
+  padding: 1.6vw 0.8vh 0.8vw 2.4vh;
   font-family: "Coiny", "system-ui";
   text-decoration: none;
   font-size: 1.5rem;
@@ -349,12 +351,11 @@ input:focus {
 }
 
 #wishlist-list {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-auto-rows: min-content;
   flex-grow: 1;
   gap: var(--spacing);
-  overflow-y: auto;
 }
 
 .wl-item {
@@ -365,11 +366,11 @@ input:focus {
   color: black;
   padding: 1rem;
   gap: 0.5rem;
-  width: calc(90% - 10px);
 }
 
 .wl-head {
   display: flex;
+  align-items: center;
   gap: 0.5rem;
   font-size: 1rem;
   padding: 0;
@@ -377,6 +378,8 @@ input:focus {
 
 .toggle,
 .delete {
+  display: flex;
+  align-items: center;
   border: none;
   background: none;
   cursor: pointer;
@@ -384,11 +387,13 @@ input:focus {
 }
 
 #wl-form {
+  display: flex;
+  flex-direction: column;
   background-color: var(--ctn-color);
   border-radius: 1.5rem 1.5rem;
   padding: var(--spacing);
   gap: var(--spacing);
-  max-height: 10rem;
+  height: fit-content;
 }
 
 #wl-form input {
@@ -401,4 +406,45 @@ input:focus {
 #wl-form i {
   cursor: pointer;
   font-size: 1.5rem;
+}
+
+#wb-toolbar{
+    display: flex;
+    border-radius: 10rem;
+    background-color: var(--btn-color);
+    color: var(--bg-color);
+    width: fit-content;
+    max-width: 250px;
+    overflow: hidden;
+    padding: 0.75rem;
+}
+
+#wb-toolbar button{
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border: none;
+    border-radius: 10rem;
+    width: 45px;
+    height: 45px;
+    background-color: transparent;
+    color: var(--bg-color)
+}
+
+#wb-scroll {
+    position: relative;
+    display: flex;
+    flex-grow: 1;
+    overflow: auto;
+    min-height: 0;
+    min-width: 0;
+}
+
+#whiteboard {
+    position: relative;
+    width: 100000px;
+    height: 100000px;
+    min-width: 100000px;
+    min-height: 100000px;
+    background-color: white;
 }

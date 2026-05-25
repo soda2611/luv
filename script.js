@@ -114,10 +114,12 @@ let lookupDate = getCurrentDate();
 const msgCtn = document.getElementById("msg-ctn");
 
 function clearMessageUI() {
+  if (!msgCtn) return;
   msgCtn.innerHTML = "";
 }
 
 function renderDateHeader(date) {
+  if (!msgCtn) return;
   const div = document.createElement("div");
   div.className = "date";
   div.innerText = formatDateVN(date);
@@ -130,6 +132,7 @@ function toTime(str) {
 }
 
 function createMessageCard(sender, content, time) {
+  if (!msgCtn) return null;
   const box = document.createElement("div");
 
   box.className = "msg";
@@ -152,6 +155,7 @@ function createMessageCard(sender, content, time) {
 }
 
 function appendToLastMessage(content) {
+  if (!msgCtn) return;
   const last = msgCtn.lastElementChild;
   if (!last) return;
 
@@ -173,6 +177,7 @@ function getLastMessage() {
 }
 
 function scrollToBottom() {
+  if (!msgCtn) return;
   msgCtn.scrollTop = msgCtn.scrollHeight;
 }
 
@@ -202,6 +207,7 @@ async function sendMessage(userId, content) {
 }
 
 async function loadMessages(dateStr) {
+  if (!msgCtn) return;
 
   lookupDate = formatDateVN(dateStr);
 
