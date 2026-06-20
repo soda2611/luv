@@ -414,7 +414,6 @@ input:focus {
     background-color: var(--btn-color);
     color: var(--bg-color);
     width: fit-content;
-    max-width: 250px;
     overflow: hidden;
     padding: 0.75rem;
 }
@@ -449,8 +448,8 @@ input:focus {
     background-color: white;
 }
 
-.scene{position:relative;height:95vh;width:100vw;overflow:hidden;display:flex;align-items:center;justify-content:center;opacity:0.3}
-#hearts{position:absolute;inset:0;pointer-events:none}
+.scene{position:relative;height:95vh;width:100vw;overflow:hidden;display:flex;align-items:center;justify-content:center;opacity:0.3;}
+#hearts{position:absolute;inset:0;pointer-events:none;z-index:-1;}
 
 .heart{
 	position:absolute;

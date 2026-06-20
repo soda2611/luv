@@ -26,12 +26,13 @@
                 <a href="index.html">💖 <b>ngha và hmn</b></a>
                 <span style="display: flex; flex-grow: 1"></span>
                 <span id="date-counter">☀️ &lt3 ⭐</span>
+                <button id="wb-list-btn" style="background:var(--btn-color); color:var(--bg-color); border-radius:8px; padding:6px 10px; border:none; margin-right:8px;">Boards</button>
                 <a onclick="openNav()" id="id-tag">id</a>
             </div>
 
             <div id="wb-scroll"><div id="whiteboard"></div></div>
             
-            <div style="display: flex; justify-content: center; width: 100%; position: relative;">
+            <div style="display: none; justify-content: center; width: 100%; position: relative;">
                 <div id="wb-toolbar">
                     <div style="position: relative; display: flex; overflow-x: auto; border-radius: 10rem; height: fit-content; width: fit-content; max-width: 350px; gap: 1rem;">
                         <button style="display: flex; align-items: center;"><i class="material-icons" style="position: relative; font-size: 1.75rem;">touch_app</i></button>
@@ -39,6 +40,18 @@
                         <button style="display: flex; align-items: center;"><i class="material-icons" style="position: relative; font-size: 1.75rem;">sticky_note_2</i></button>
                         <button style="display: flex; align-items: center;"><i class="material-icons" style="position: relative; font-size: 1.75rem;">lock</i></button>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="wb-list-modal" class="modal">
+            <div class="modal-box" style="max-width:500px; width:90%;">
+                <h3>Whiteboards</h3>
+                <div id="wb-list" style="display:flex;flex-direction:column;gap:8px;max-height:300px;overflow:auto;margin-bottom:8px;"></div>
+                <div style="display:flex;gap:8px;">
+                    <input id="wb-new-name" placeholder="Tên whiteboard...">
+                    <button id="wb-create">Tạo</button>
+                    <button onclick="document.getElementById('wb-list-modal').style.display='none'">Đóng</button>
                 </div>
             </div>
         </div>
