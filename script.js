@@ -1,3 +1,46 @@
+const container = document.getElementById('hearts');
+const densityEl = document.getElementById('density');
+const toggleBtn = document.getElementById('toggle');
+
+let running = true;
+let density = densityEl ? Number(densityEl.value) || 12 : 12;
+
+if (densityEl) densityEl.addEventListener('input', ()=> density = Number(densityEl.value));
+if (toggleBtn) toggleBtn.addEventListener('click', ()=>{ running = !running; toggleBtn.textContent = running ? 'Pause' : 'Play'; });
+
+function rand(min, max){ return Math.random() * (max - min) + min }
+
+function createHeart(){
+	const el = document.createElement('div');
+	el.className = 'heart';
+	const size = Math.round(rand(12, 44));
+	el.style.setProperty('--size', `${size}px`);
+	el.style.left = `${rand(0,100)}%`;
+	el.style.setProperty('--duration', `${rand(4.5,9).toFixed(2)}s`);
+	el.style.setProperty('--delay', `${rand(0,1.8).toFixed(2)}s`);
+	el.style.setProperty('--tx', `${Math.round(rand(-120,120))}px`);
+	container.appendChild(el);
+	el.addEventListener('animationend', ()=> el.remove());
+}
+
+let intervalId = null;
+function start(){
+	stop();
+	intervalId = setInterval(()=>{
+		if(!running) return;
+		const toSpawn = Math.max(1, Math.round(density / 2));
+		for(let i=0;i<toSpawn;i++) createHeart();
+	}, 300);
+}
+function stop(){ if(intervalId) clearInterval(intervalId); intervalId = null }
+
+start();
+
+// make a few initial hearts
+for(let i=0;i<6;i++) setTimeout(createHeart, i*200);
+
+// Pause when page hidden to save CPU
+document.addEventListener('visibilitychange', ()=>{ if(document.hidden) running = false; else running = true });
 /* ========================= 🧠 DATE FORMAT ========================= */
 
 flatpickr("#datePicker", {

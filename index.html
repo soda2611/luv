@@ -19,6 +19,14 @@
         <script src="script.js" defer></script>
     </head>
     <body>
+        <div class="scene">
+            <div id="hearts" aria-hidden="true"></div>
+            
+            <div class="controls" style="display: none;">
+                <label>Density: <input id="density" type="range" min="1" max="50" value="1"></label>
+                <button id="toggle">Pause</button>
+            </div>
+        </div>
         <div style="position: absolute; width: 90%; height: calc(100% - 1.5rem); display:flex; flex-direction: column; gap: var(--spacing);">
             <div id="header">
                 <a href="index.html">💖 <b>ngha và hmn</b></a>
