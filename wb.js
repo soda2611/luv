@@ -337,7 +337,7 @@
 
   // State
   let mode = 'draw'; // 'draw' or 'pan'
-  let locked = false;
+  let locked = true;
   let drawing = false;
   let last = { x: 0, y: 0 };
   let currentStrokeId = null;
