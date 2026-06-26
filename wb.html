@@ -42,14 +42,11 @@
                     </div>
                 </div>
             </div>
-        </div>
 
-        <div id="wb-list-modal" class="modal">
-            <div class="modal-box" style="max-width:500px; width:90%;">
-                <h3>Whiteboards</h3>
-                <div id="wb-list" style="display:flex;flex-direction:column;gap:8px;max-height:300px;overflow:auto;margin-bottom:8px;"></div>
-                <!--<div style="display:flex;gap:8px;">
-                    <input id="wb-new-name" placeholder="Tên whiteboard...">
+            <div id="wb-list-panel" style="display:none; flex-grow:1; background: var(--ctn-color); border-radius: 1.5rem; padding:1rem; overflow:auto; display:flex; flex-direction:column;">
+                <div id="wb-list" style="display:flex;flex-direction:column;gap:8px;max-height:calc(100% - 100px);overflow:auto;margin-bottom:8px;"></div>
+                <!--<div style="display:flex;gap:8px; flex-wrap:wrap; align-items:center;">
+                    <input id="wb-new-name" placeholder="Tên whiteboard..." style="flex:1; min-width:120px;">
                     <button id="wb-create">Tạo</button>
                     <button id="wb-list-close">Đóng</button>
                 </div>-->

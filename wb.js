@@ -739,37 +739,27 @@
   let currentOpenBoard = null;
 
   const wbListBtn = document.getElementById('wb-list-btn');
-  const wbListModal = document.getElementById('wb-list-modal');
+  const wbListPanel = document.getElementById('wb-list-panel');
   const wbListEl = document.getElementById('wb-list');
   const wbCreateBtn = document.getElementById('wb-create');
   const wbNewName = document.getElementById('wb-new-name');
 
-  // Helper: make the whiteboard list take the full viewport and hide the whiteboard area
-  function makeListFullScreen() {
-    try {
-      if (!wbListModal) return;
-      wbListModal.style.display = 'flex';
-      const box = wbListModal.querySelector('.modal-box');
-      if (box) {
-        box.style.maxWidth = '100%';
-        box.style.width = '100%';
-        box.style.height = '100%';
-        box.style.borderRadius = '0';
-        box.style.padding = '1rem';
-        box.style.overflow = 'auto';
-        box.style.display = 'flex';
-        box.style.flexDirection = 'column';
-        box.style.justifyContent = 'flex-start';
-        box.style.alignItems = 'stretch';
-      }
-      try { wbScroll.style.display = 'none'; } catch (e) {}
-    } catch (e) { console.warn(e); }
+  function showBoardList() {
+    if (wbListPanel) wbListPanel.style.display = 'flex';
+    if (wbScroll) wbScroll.style.display = 'none';
+    if (wbListBtn) wbListBtn.style.display = 'none';
   }
 
-  wbListBtn.addEventListener('click', () => { makeListFullScreen(); loadWhiteboards(); });
-  // Initial state: show whiteboard list full-screen instead of an empty board.
-  try { wbListBtn.style.display = 'none'; } catch (e) {}
-  makeListFullScreen();
+  function showCanvas() {
+    if (wbListPanel) wbListPanel.style.display = 'none';
+    if (wbScroll) wbScroll.style.display = '';
+    if (wbListBtn) wbListBtn.style.display = currentOpenBoard ? '' : 'none';
+  }
+
+  wbListBtn.addEventListener('click', () => { showBoardList(); loadWhiteboards(); });
+  // Initial state: show whiteboard list instead of an empty board.
+  try { if (wbListBtn) wbListBtn.style.display = 'none'; } catch (e) {}
+  showBoardList();
   loadWhiteboards();
   wbCreateBtn.addEventListener('click', () => {
     const name = wbNewName.value.trim();
@@ -778,13 +768,13 @@
     wbNewName.value = '';
   });
 
-  // Close button for full-screen list: restore whiteboard view
+  // Close button for list panel: restore current canvas view
   const wbListCloseBtn = document.getElementById('wb-list-close');
   if (wbListCloseBtn) {
     wbListCloseBtn.addEventListener('click', () => {
-      try { wbListModal.style.display = 'none'; } catch (e) {}
-      try { wbScroll.style.display = ''; } catch (e) {}
-      try { wbListBtn.style.display = currentOpenBoard ? '' : 'none'; } catch (e) {}
+      if (currentOpenBoard) {
+        showCanvas();
+      }
     });
   }
 
@@ -802,8 +792,14 @@
         const lbl = document.createElement('div'); lbl.textContent = `${r.whiteboard_name} • ${r.created_at}`;
         const actions = document.createElement('div');
         const openBtn = document.createElement('button'); openBtn.textContent = 'Open'; openBtn.style.marginRight='6px';
+        openBtn.style.padding = "10px";
+        openBtn.style.border = "none";
+        openBtn.style.background = "var(--btn-color)";
+        openBtn.style.color = "var(--bg-color)";
+        openBtn.style.borderRadius = "10px";
+        openBtn.style.cursor = "pointer";
         const delBtn = document.createElement('button'); delBtn.textContent = 'Delete'; delBtn.style.background='red'; delBtn.style.color='white';
-        openBtn.addEventListener('click', () => { openWhiteboard(r.whiteboard_name); wbListModal.style.display='none'; });
+        openBtn.addEventListener('click', () => { openWhiteboard(r.whiteboard_name); });
         delBtn.addEventListener('click', () => { if(confirm('Xóa whiteboard này?')) deleteWhiteboard(r.id, r.whiteboard_name); });
         actions.appendChild(openBtn); //actions.appendChild(delBtn);
         row.appendChild(lbl); row.appendChild(actions);
@@ -851,12 +847,8 @@
       }
       redrawAll();
     } catch (e) { console.warn(e); }
-    const label = document.getElementById('date-counter');
-    if (label) label.innerText = `WB: ${name}`;
     // make the list button available when a board is open
-    try { wbListBtn.style.display = ''; } catch (e) {}
-    // ensure the list modal is hidden and whiteboard area visible
-    try { wbListModal.style.display = 'none'; wbScroll.style.display = ''; } catch (e) {}
+    showCanvas();
   }
 
   // Widget support: load, create, update, delete

@@ -1,0 +1,86 @@
+:root{
+	--bg1:#0b1220;
+	--bg2:#4b1056;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{
+	font-family:system-ui,Segoe UI,Roboto,'Helvetica Neue',Arial;
+	background:linear-gradient(180deg,var(--bg1),var(--bg2));
+	color:white;
+}
+
+input{
+    background:rgba(255,255,255,0.06);
+    backdrop-filter:blur(6px);
+    padding:10px 12px;
+    border-radius:10px;
+    color:#fff;
+    border: none;
+    width: 100%;
+    position: relative;
+}
+
+input:focus {
+  outline: none;
+  border: none;
+}
+
+.scene{position:relative;height:100vh;overflow:hidden;display:flex;align-items:center;justify-content:center}
+#hearts{position:absolute;inset:0;pointer-events:none}
+
+.heart{
+	position:absolute;
+	bottom:-10vh;
+	width:var(--size,28px);
+	height:var(--size,28px);
+	transform:translateX(0) translateY(0) rotate(45deg);
+	background:#ff6b9a;
+	left:50%;
+	animation:rise var(--duration,6s) linear var(--delay,0s) forwards;
+	opacity:0;
+	filter:drop-shadow(0 6px 10px rgba(0,0,0,0.25));
+}
+.heart::before,.heart::after{
+	content:"";
+	position:absolute;
+	width:100%;
+	height:100%;
+	background:inherit;
+	border-radius:50%;
+	top:-50%;
+	left:0;
+}
+.heart::after{left:-50%;top:0}
+
+@keyframes rise{
+	0%{transform:translateX(0) translateY(0) rotate(45deg) scale(0.9);opacity:0}
+	8%{opacity:1}
+	50%{transform:translateX(calc(var(--tx,0px) * 0.5)) translateY(-60vh) rotate(45deg) scale(1)}
+	100%{transform:translateX(var(--tx,0px)) translateY(-120vh) rotate(45deg) scale(1.05);opacity:0}
+}
+
+.controls{position:fixed;right:16px;top:16px;background:rgba(255,255,255,0.06);backdrop-filter:blur(6px);padding:10px 12px;border-radius:10px;color:#fff;font-size:14px}
+.controls input[type=range]{vertical-align:middle}
+.controls button{margin-left:8px;padding:6px 10px;border-radius:6px;border:0;background:#ff6b9a;color:#111;font-weight:600}
+
+@media (max-width:600px){.controls{left:8px;right:auto;font-size:13px;padding:8px}}
+
+#header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding-left: 1rem;
+  padding-right: 1rem;
+  padding-bottom: 5px;
+  gap: var(--spacing);
+  min-height: 55px;
+  font-size: 0.9rem;
+  border-bottom: 0.2rem solid var(--btn-color);
+  background-color: var(--bg-color);
+}
+
+a {
+  color: var(--btn-color);
+  text-decoration: none;
+}

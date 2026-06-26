@@ -381,3 +381,7 @@ function openNav() {
 function closeNav() {
   document.getElementById("sidenav").style.top = "100%";
 }
+
+function dateCounter() {
+  window.location.href = "date.html";
+}
