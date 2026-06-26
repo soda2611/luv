@@ -743,17 +743,20 @@
   const wbListEl = document.getElementById('wb-list');
   const wbCreateBtn = document.getElementById('wb-create');
   const wbNewName = document.getElementById('wb-new-name');
+  const dateCounterEl = document.getElementById('date-counter');
 
   function showBoardList() {
     if (wbListPanel) wbListPanel.style.display = 'flex';
     if (wbScroll) wbScroll.style.display = 'none';
     if (wbListBtn) wbListBtn.style.display = 'none';
+    if (dateCounterEl) dateCounterEl.style.display = '';
   }
 
   function showCanvas() {
     if (wbListPanel) wbListPanel.style.display = 'none';
     if (wbScroll) wbScroll.style.display = '';
-    if (wbListBtn) wbListBtn.style.display = currentOpenBoard ? '' : 'none';
+    if (wbListBtn) wbListBtn.style.display = '';
+    if (dateCounterEl) dateCounterEl.style.display = 'none';
   }
 
   wbListBtn.addEventListener('click', () => { showBoardList(); loadWhiteboards(); });
