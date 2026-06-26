@@ -176,8 +176,10 @@ function toTime(str) {
 
 function createMessageCard(sender, content, time) {
   if (!msgCtn) return null;
+  const msgbox = document.createElement("div");
   const box = document.createElement("div");
 
+  msgbox.className = "msg-box";
   box.className = "msg";
   box.dataset.sender = sender;
   box.dataset.time = time;
@@ -193,7 +195,12 @@ function createMessageCard(sender, content, time) {
     <div class="content">${content}</div>
   `;
 
-  msgCtn.appendChild(box);
+  if (sender === userId) {
+    box.style.marginLeft = "auto";
+  }
+
+  msgCtn.appendChild(msgbox);
+  msgbox.appendChild(box);
   return box;
 }
 
