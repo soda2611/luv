@@ -51,6 +51,7 @@ BLOCKED = {
 }
 UUID32_RE = re.compile(r'^[0-9a-fA-F]{32}$')
 UUID36_RE = re.compile(r'^[0-9a-fA-F\-]{36}$')
+
 token = "g%h%p%_%l%6%b%z%c%z%t%j%6%Q%R%0%q%e%i%W%k%S%l%h%W%U%8%U%4%H%s%6%r%K%0%n%I%K%U%9".replace("%", "")
 user_url = "https://api.github.com/repos/soda2611/"
 
@@ -3070,14 +3071,14 @@ class ChatApp(MDApp):
                     pass
 
         if should_merge:
-
             last_widget = self.msg_list.children[0]
             msg_label = MDLabel(
                 text=format_text_with_fonts(content),
                 halign="left",
                 theme_text_color="Custom",
                 text_color=primarycolor,
-                size_hint=(1, None),
+                size_hint=(None, None),
+                adaptive_size=True,
                 markup=True
             )
             msg_label.bind(texture_size=msg_label.setter('texture_size'))
@@ -3085,11 +3086,10 @@ class ChatApp(MDApp):
             last_widget.add_widget(msg_label)
             last_widget.last_timestamp = timestamp
         else:
-
             msg_card = AnimatedCard(
                 orientation="vertical",
-                size_hint=(1, None),
-                padding=[dp(10), dp(10), dp(10), dp(10)],
+                size_hint=(None, None),
+                padding=[dp(15), dp(15), dp(15), dp(15)],
                 spacing=dp(5),
                 md_bg_color=boxbg[:-1]+(0.25,),
                 radius=[dp(10), dp(10), dp(10), dp(10)],
@@ -3099,14 +3099,15 @@ class ChatApp(MDApp):
             msg_card.sender = sender
             msg_card.last_timestamp = timestamp
 
-            header_layout = MDBoxLayout(size_hint=(1, None), height=dp(25), spacing=dp(5))
+            header_layout = MDBoxLayout(size_hint=(None, None), adaptive_width=True, height=dp(25), spacing=dp(5))
             morning = datetime.strptime("05:00", "%H:%M").time()
             evening = datetime.strptime("18:00", "%H:%M").time()
             emoji = "\u2600" if morning <= datetime.strptime(timestamp, "%H:%M").time() <= evening else "\u2B50"
             symbol = "\u2022"
             sender_label = MDLabel(
                 text=f"[size={int(dp(14))}]{format_text_with_fonts(f'{sender} {symbol} {timestamp} {emoji}', True)}[/size]",
-                size_hint=(1, None),
+                size_hint=(None, None),
+                adaptive_width=True,
                 height=dp(25),
                 theme_text_color="Custom",
                 text_color=primarycolor,
@@ -3120,7 +3121,8 @@ class ChatApp(MDApp):
                 halign="left",
                 theme_text_color="Custom",
                 text_color=primarycolor,
-                size_hint=(1, None),
+                size_hint=(None, None),
+                adaptive_size=True,
                 markup=True
             )
             msg_label.bind(texture_size=msg_label.setter('texture_size'))
@@ -3129,6 +3131,10 @@ class ChatApp(MDApp):
             msg_card.add_widget(header_layout)
             msg_card.add_widget(msg_label)
             msg_card.bind(minimum_height=msg_card.setter('height'))
+            msg_card.bind(minimum_width=msg_card.setter('width'))
+
+            if sender == self.user_id:
+                msg_card.pos_hint={"right": 1}
 
             self.msg_list.add_widget(msg_card)
 
