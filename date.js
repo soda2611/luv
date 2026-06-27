@@ -16,18 +16,47 @@ if (anniversaryDate < today) {
 }
 
 const daysTogether = Math.floor((today - startDate) / (1000 * 60 * 60 * 24));
-const totalDaysInYear = 365;
+let years = today.getFullYear() - startDate.getFullYear();
+let months = today.getMonth() - startDate.getMonth();
+let days = today.getDate() - startDate.getDate();
 
-const years = Math.floor(daysTogether / 365);
-const daysAfterYears = daysTogether % 365;
-const months = Math.floor(daysAfterYears / 30.44); // Average days per month
-const daysAfterMonths = daysAfterYears - Math.floor(months * 30.44);
-const weeks = Math.floor(daysAfterMonths / 7);
-const remainingDays = daysAfterMonths % 7;
+if (days < 0) {
+    months--;
 
-// Days until next anniversary milestone (tròn năm)
-const daysUntilAnniversary = (totalDaysInYear - daysAfterYears) || totalDaysInYear;
+    // số ngày của tháng trước
+    const prevMonth = new Date(today.getFullYear(), today.getMonth(), 0);
+    days += prevMonth.getDate();
+}
+
+if (months < 0) {
+    years--;
+    months += 12;
+}
+
+const weeks = Math.floor(days / 7);
+const remainingDays = days % 7;
+
+// ====== Anniversary ======
+const msPerDay = 1000 * 60 * 60 * 24;
+const daysUntilAnniversary = Math.ceil(
+    (anniversaryDate - today) / msPerDay
+);
+
 const nextMilestoneYear = years + 1;
+
+// số ngày của chu kỳ hiện tại (365 hoặc 366)
+const currentAnniversary = new Date(
+    anniversaryDate.getFullYear() - 1,
+    10,
+    26
+);
+
+const totalDaysInYear = Math.round(
+    (anniversaryDate - currentAnniversary) / msPerDay
+);
+
+// đã đi được bao nhiêu ngày trong chu kỳ hiện tại
+const elapsedThisYear = totalDaysInYear - daysUntilAnniversary;
 
 // Milestone messages
 const milestones = {
