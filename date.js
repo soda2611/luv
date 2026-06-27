@@ -59,20 +59,40 @@ const totalDaysInYear = Math.round(
 const elapsedThisYear = totalDaysInYear - daysUntilAnniversary;
 
 // Milestone messages
-const milestones = {
-  100: '🎉 100 ngày rồi!',
-  180: '🌙 Nửa năm yêu nhau!',
-  200: '💎 200 ngày!',
-  250: '✨ 250 ngày!',
-  300: '🌟 300 ngày!',
-  365: '🎊 1 năm yêu nhau!'
-};
-
 function getMilestoneMessage() {
-  if (milestones[daysTogether]) {
-    return milestones[daysTogether];
-  }
-  return '';
+    // Tròn 100 ngày
+    if (daysTogether === 100) return "🎉 100 ngày rồi!";
+
+    // Nửa năm
+    if (daysTogether === 180) return "🌙 Nửa năm yêu nhau!";
+
+    // Mỗi 50 ngày từ 200 ngày
+    if (daysTogether >= 200 && daysTogether % 50 === 0) {
+        return `✨ Đã bên nhau ${daysTogether} ngày!`;
+    }
+
+    // Đúng ngày kỷ niệm hàng tháng
+    if (
+        today.getDate() === startDate.getDate() &&
+        !(today.getMonth() === startDate.getMonth() && years > 0)
+    ) {
+        const totalMonths = years * 12 + months;
+
+        if (totalMonths > 0 && totalMonths % 12 !== 0) {
+            return `💖 Kỷ niệm ${totalMonths} tháng yêu nhau!`;
+        }
+    }
+
+    // Đúng ngày kỷ niệm hàng năm
+    if (
+        today.getDate() === startDate.getDate() &&
+        today.getMonth() === startDate.getMonth() &&
+        years > 0
+    ) {
+        return `🎊 Kỷ niệm ${years} năm yêu nhau!`;
+    }
+
+    return "";
 }
 
 function animateCounter() {
