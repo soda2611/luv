@@ -20,8 +20,10 @@ const totalDaysInYear = 365;
 
 const years = Math.floor(daysTogether / 365);
 const daysAfterYears = daysTogether % 365;
-const weeks = Math.floor(daysAfterYears / 7);
-const remainingDays = daysAfterYears % 7;
+const months = Math.floor(daysAfterYears / 30.44); // Average days per month
+const daysAfterMonths = daysAfterYears - Math.floor(months * 30.44);
+const weeks = Math.floor(daysAfterMonths / 7);
+const remainingDays = daysAfterMonths % 7;
 
 // Days until next anniversary milestone (tròn năm)
 const daysUntilAnniversary = (totalDaysInYear - daysAfterYears) || totalDaysInYear;
@@ -71,6 +73,7 @@ function updateCounter() {
   
   // Update weeks and days
   const yearsEl = document.getElementById('years');
+  const monthEl = document.getElementById('months');
   const weeksEl = document.getElementById('weeks');
   const remainingDaysEl = document.getElementById('remaining-days');
   const untilYearEl = document.getElementById('until-year');
@@ -80,6 +83,7 @@ function updateCounter() {
   const milestoneEl = document.getElementById('milestone');
   
   if (yearsEl) yearsEl.textContent = years;
+  if (monthEl) monthEl.textContent = months;
   if (weeksEl) weeksEl.textContent = weeks;
   if (remainingDaysEl) remainingDaysEl.textContent = remainingDays;
   if (untilYearEl) untilYearEl.textContent = Math.max(0, daysUntilAnniversary);
