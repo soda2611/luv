@@ -3137,6 +3137,7 @@ class ChatApp(MDApp):
                 msg_card.pos_hint={"right": 1}
 
             self.msg_list.add_widget(msg_card)
+            msg_card.size_hint_max_x = msg_card.parent.width * 0.8
 
         msg_id_list[msg_id]=msg_label
 
