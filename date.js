@@ -60,15 +60,13 @@ const elapsedThisYear = totalDaysInYear - daysUntilAnniversary;
 
 // Milestone messages
 function getMilestoneMessage() {
-    // Tròn 100 ngày
-    if (daysTogether === 100) return "🎉 100 ngày rồi!";
-
-    // Nửa năm
-    if (daysTogether === 180) return "🌙 Nửa năm yêu nhau!";
-
-    // Mỗi 50 ngày từ 200 ngày
-    if (daysTogether >= 200 && daysTogether % 50 === 0) {
-        return `✨ Đã bên nhau ${daysTogether} ngày!`;
+    // Đúng ngày kỷ niệm hàng năm
+    if (
+        today.getDate() === startDate.getDate() &&
+        today.getMonth() === startDate.getMonth() &&
+        years > 0
+    ) {
+        return `🎊 Ỏoooo ${years} năm gùiiii!`;
     }
 
     // Đúng ngày kỷ niệm hàng tháng
@@ -79,20 +77,9 @@ function getMilestoneMessage() {
         const totalMonths = years * 12 + months;
 
         if (totalMonths > 0 && totalMonths % 12 !== 0) {
-            return `💖 Kỷ niệm ${totalMonths} tháng yêu nhau!`;
+            return `💖 Hí hí ${totalMonths} tháng gùi nòoo!`;
         }
     }
-
-    // Đúng ngày kỷ niệm hàng năm
-    if (
-        today.getDate() === startDate.getDate() &&
-        today.getMonth() === startDate.getMonth() &&
-        years > 0
-    ) {
-        return `🎊 Kỷ niệm ${years} năm yêu nhau!`;
-    }
-
-    return "";
 }
 
 function animateCounter() {
@@ -140,13 +127,13 @@ function updateCounter() {
   
   // Update progress bar
   if (progressFillEl) {
-    const progressPercent = (daysTogether / totalDaysInYear) * 100;
+    const progressPercent = (elapsedThisYear / totalDaysInYear) * 100;
     progressFillEl.style.width = Math.min(progressPercent, 100) + '%';
   }
-  
+
   if (progressTextEl) {
-    const progressPercent = Math.min((daysTogether / totalDaysInYear) * 100, 100).toFixed(1);
-    progressTextEl.textContent = `${progressPercent}% đến 1 năm`;
+    const progressPercent = Math.min((elapsedThisYear / totalDaysInYear) * 100, 100).toFixed(1);
+    progressTextEl.textContent = `${progressPercent}% đến ${nextMilestoneYear} năm`;
   }
   
   // Show milestone message
