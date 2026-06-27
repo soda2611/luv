@@ -1,67 +1,67 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="vi">
-<head>
-	<meta charset="utf-8">
-	<meta name="viewport" content="width=device-width,initial-scale=1">
-	<meta property="og:title" content="luv">
-	<meta property="og:description" content="góc riêng của ngha và hmn">
-	<meta property="og:image" content="images/avt.png">
-	<meta property="og:url" content="https://soda2611.github.io/cv">
-	<link rel="icon" href="resources/img/Icon.png" type="image/svg+xml">
-	<link rel="preconnect" href="https://fonts.googleapis.com">
-	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-	<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alfa+Slab+One&family=Coiny&display=swap">
-	<link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
-	<title>ngha và hmn</title>
-	<link rel="stylesheet" href="date.css">
-</head>
-<body>
-	<div class="scene">
-        <div id="hearts" aria-hidden="true"></div>
-        
-		<div style="display:flex;flex-direction:column;align-items:center;gap:0.5rem;background:rgba(255,255,255,0.06);backdrop-filter:blur(10px);padding:30px;border-radius:20px;color:#fff;text-align:center;max-width:500px;">
-			<div id="header">
-                <h1><a href="index.html"><b>💕ngha và hmn</b></a></h1>
-            </div>
-			<p style="font-size:1rem;margin:0;">đã bên nhau</p>
-			<div style="font-size:3rem;font-weight:bold;color:#ff6b9a;" id="days-counter">0</div>
-			<h2 style="margin:0;">ngày</h2>
-			<div class="milestone" id="milestone"></div>
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width,initial-scale=1">
+		<meta property="og:title" content="luv">
+		<meta property="og:description" content="góc riêng của ngha và hmn">
+		<meta property="og:image" content="images/avt.png">
+		<meta property="og:url" content="https://soda2611.github.io/cv">
+		<link rel="icon" href="resources/img/Icon.png" type="image/svg+xml">
+		<link rel="preconnect" href="https://fonts.googleapis.com">
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+		<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alfa+Slab+One&family=Coiny&display=swap">
+		<link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+		<title>ngha và hmn</title>
+		<link rel="stylesheet" href="date.css">
+	</head>
+	<body>
+		<div class="scene">
+			<div id="hearts" aria-hidden="true"></div>
 			
-			<div class="info-row">
-				<div class="info-item">
-					<div class="info-number" id="years">0</div>
-					<div class="info-label">năm</div>
+			<div style="display:flex;flex-direction:column;align-items:center;gap:0.5rem;background:rgba(255,255,255,0.06);backdrop-filter:blur(10px);padding:30px;border-radius:20px;color:#fff;text-align:center;max-width:500px;">
+				<div id="header">
+					<h1><a href="index.html"><b>💕ngha và hmn</b></a></h1>
 				</div>
-				<div class="info-item">
-					<div class="info-number" id="months">0</div>
-					<div class="info-label">tháng</div>
+				<p style="font-size:1rem;margin:0;">đã bên nhau</p>
+				<div style="font-size:3rem;font-weight:bold;color:#ff6b9a;" id="days-counter">0</div>
+				<h2 style="margin:0;">ngày</h2>
+				<div class="milestone" id="milestone"></div>
+				
+				<div class="info-row">
+					<div class="info-item">
+						<div class="info-number" id="years">0</div>
+						<div class="info-label">năm</div>
+					</div>
+					<div class="info-item">
+						<div class="info-number" id="months">0</div>
+						<div class="info-label">tháng</div>
+					</div>
+					<div class="info-item">
+						<div class="info-number" id="weeks">0</div>
+						<div class="info-label">tuần</div>
+					</div>
+					<div class="info-item">
+						<div class="info-number" id="remaining-days">0</div>
+						<div class="info-label">ngày</div>
+					</div>
 				</div>
-				<div class="info-item">
-					<div class="info-number" id="weeks">0</div>
-					<div class="info-label">tuần</div>
-				</div>
-				<div class="info-item">
-					<div class="info-number" id="remaining-days">0</div>
-					<div class="info-label">ngày</div>
-				</div>
-			</div>
 
-			<div class="progress-bar">
-				<div class="progress-fill" id="progress-fill" style="width: 0%;"></div>
+				<div class="progress-bar">
+					<div class="progress-fill" id="progress-fill" style="width: 0%;"></div>
+				</div>
+				<div class="info-item">
+					<span class="info-label"><span class="info-number" id="until-year">0</span> ngày nữa là tròn <span class="info-number" id="milestone-year">1</span> năm</span>
+				</div>
 			</div>
-			<div class="info-item">
-				<span class="info-label"><span class="info-number" id="until-year">0</span> ngày nữa là tròn <span class="info-number" id="milestone-year">1</span> năm</span>
+			
+			<div class="controls" style="display: none;">
+				<label>Density: <input id="density" type="range" min="1" max="50" value="1"></label>
+				<button id="toggle">Pause</button>
 			</div>
 		</div>
 		
-        <div class="controls" style="display: none;">
-            <label>Density: <input id="density" type="range" min="1" max="50" value="1"></label>
-			<button id="toggle">Pause</button>
-		</div>
-	</div>
-    
-	<script src="date.js"></script>
-	<script src="script.js"></script>
-</body>
+		<script src="date.js"></script>
+		<script src="script.js"></script>
+	</body>
 </html>

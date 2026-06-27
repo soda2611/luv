@@ -185,10 +185,11 @@ a {
   margin: 1rem 0;
 }
 .progress-fill {
+  width: 0;
   height: 100%;
   background: linear-gradient(90deg, #ff6b9a, #ff9db9);
   border-radius: 10px;
-  transition: width 0.3s ease;
+  transition: width 1s ease;
 }
 .info-row {
   display: flex;
